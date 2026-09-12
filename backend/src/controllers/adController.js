@@ -62,6 +62,10 @@ const createAd = async (req, res, next) => {
  * title/description) and `city` (case-insensitive partial match) query
  * params, plus basic pagination.
  *
+ * Boosted ads are surfaced first: "featured"/"super" adType ads sort ahead
+ * of "normal" ones, and within each of those two groups ads are ordered
+ * newest-first.
+ *
  * Route: GET /api/v1/ads
  *
  * @param {import('express').Request} req
@@ -85,17 +89,33 @@ const getAds = async (req, res, next) => {
       filter.city = { $regex: city.trim(), $options: 'i' };
     }
 
+    // Fetches the full filtered set into memory rather than paginating at
+    // the DB level — acceptable at this app's current scale (the admin
+    // listing below already does unpaginated full-collection fetches).
+    const allMatching = await Ad.find(filter)
+      .populate('category', 'name slug')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    // Array.prototype.sort is a STABLE sort (guaranteed since ES2019 / all
+    // current Node/V8) — since `allMatching` is already createdAt-desc,
+    // sorting only by boost rank here preserves newest-first ordering
+    // *within* each rank group for free.
+    //
+    // `.lean()` skips Mongoose's schema-default filling, so an ad created
+    // before `adType` existed has no `adType` key at all rather than the
+    // schema's 'normal' default — treat that as 'normal' (rank 1), not as
+    // boosted, or every legacy ad would wrongly jump ahead of newer normal ads.
+    const boostRank = (ad) => (ad.adType && ad.adType !== 'normal' ? 0 : 1);
+    allMatching.sort((a, b) => boostRank(a) - boostRank(b));
+
+    const total = allMatching.length;
     const pageNum = Math.max(parseInt(page, 10) || 1, 1);
     const limitNum = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100);
-
-    const [ads, total] = await Promise.all([
-      Ad.find(filter)
-        .populate('category', 'name slug')
-        .sort({ createdAt: -1 })
-        .skip((pageNum - 1) * limitNum)
-        .limit(limitNum),
-      Ad.countDocuments(filter),
-    ]);
+    const ads = allMatching.slice(
+      (pageNum - 1) * limitNum,
+      (pageNum - 1) * limitNum + limitNum
+    );
 
     return res.status(200).json({
       ads,
@@ -116,6 +136,10 @@ const getAds = async (req, res, next) => {
  * otherwise responds 404 so non-approved ads' existence is not leaked to
  * unauthenticated members of the public.
  *
+ * Side effect: atomically increments the ad's `views` counter on every
+ * call (increment-and-fetch, so there's no read-then-write race). No
+ * per-viewer dedup — every call counts as a view.
+ *
  * Route: GET /api/v1/ads/:id
  *
  * @param {import('express').Request} req
@@ -129,7 +153,11 @@ const getAdById = async (req, res, next) => {
       return res.status(404).json({ message: 'Ad not found' });
     }
 
-    const ad = await Ad.findOne({ _id: id, status: 'approved' })
+    const ad = await Ad.findOneAndUpdate(
+      { _id: id, status: 'approved' },
+      { $inc: { views: 1 } },
+      { new: true }
+    )
       .populate('category', 'name slug')
       .populate('user', 'name');
 
@@ -272,7 +300,8 @@ const rejectAd = async (req, res, next) => {
 
 // Fields an admin is allowed to edit on an ad's content. Deliberately
 // excludes `status`/`rejectionReason` — admin content edits must never
-// change an ad's approval status.
+// change an ad's approval status. `adType` is admin-only (boost tier) —
+// regular users cannot set it via createAd.
 const ADMIN_EDITABLE_FIELDS = [
   'title',
   'description',
@@ -280,13 +309,14 @@ const ADMIN_EDITABLE_FIELDS = [
   'whatsappNumber',
   'telegramUsername',
   'category',
+  'adType',
 ];
 
 /**
  * Admin: edit an ad's content fields (title, description, city,
- * whatsappNumber, telegramUsername, category). Only fields actually present
- * in the request body are updated. Never touches `ad.status` — an approved
- * ad remains approved after an edit.
+ * whatsappNumber, telegramUsername, category, adType). Only fields actually
+ * present in the request body are updated. Never touches `ad.status` — an
+ * approved ad remains approved after an edit.
  *
  * Route: PATCH /api/v1/ads/:id/admin (protected, admin only)
  *
@@ -363,6 +393,45 @@ const removeAdImage = async (req, res, next) => {
   }
 };
 
+/**
+ * Toggle a like on an ad for the authenticated user. Idempotent per user —
+ * liking is membership in `likedBy`, not a running counter, so repeat
+ * toggles from the same user cannot inflate `likes` beyond 1. Any
+ * authenticated user may like any ad (not admin-only).
+ *
+ * Route: PATCH /api/v1/ads/:id/like (protected)
+ *
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ */
+const toggleLikeAd = async (req, res, next) => {
+  try {
+    const ad = await Ad.findById(req.params.id);
+    if (!ad) {
+      return res.status(404).json({ message: 'Ad not found' });
+    }
+
+    const userId = req.user._id.toString();
+    const alreadyLiked = ad.likedBy.some((id) => id.toString() === userId);
+
+    if (alreadyLiked) {
+      ad.likedBy = ad.likedBy.filter((id) => id.toString() !== userId);
+    } else {
+      ad.likedBy.push(req.user._id);
+    }
+    ad.likes = ad.likedBy.length;
+    await ad.save();
+
+    return res.status(200).json({
+      message: alreadyLiked ? 'Ad unliked' : 'Ad liked',
+      liked: !alreadyLiked,
+      likes: ad.likes,
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
 module.exports = {
   createAd,
   getAds,
@@ -373,4 +442,5 @@ module.exports = {
   rejectAd,
   updateAdAdmin,
   removeAdImage,
+  toggleLikeAd,
 };

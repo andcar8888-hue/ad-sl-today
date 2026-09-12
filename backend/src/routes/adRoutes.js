@@ -10,6 +10,7 @@ const {
   rejectAd,
   updateAdAdmin,
   removeAdImage,
+  toggleLikeAd,
 } = require('../controllers/adController');
 const validate = require('../middleware/validate');
 const protect = require('../middleware/auth');
@@ -47,6 +48,11 @@ const updateAdAdminValidators = [
     .withMessage('Please enter a valid WhatsApp number'),
   body('telegramUsername').optional({ checkFalsy: true }).trim(),
   body('category').optional({ checkFalsy: true }).trim().isMongoId().withMessage('Invalid category id'),
+  body('adType')
+    .optional({ checkFalsy: true })
+    .trim()
+    .isIn(['normal', 'featured', 'super'])
+    .withMessage('Invalid ad type'),
 ];
 
 const removeAdImageValidators = [body('image').notEmpty().withMessage('image is required')];
@@ -78,6 +84,9 @@ router.patch(
   validate,
   removeAdImage
 );
+
+// --- Protected, any authenticated user (must be declared before "/:id") -----
+router.patch('/:id/like', protect, toggleLikeAd);
 
 // --- Public single-ad lookup -------------------------------------------------
 router.get('/:id', getAdById);

@@ -31,3 +31,9 @@ export const updateAdAdmin = (id, payload) =>
 // (e.g. "/uploads/ads/xxx.jpg").
 export const removeAdImage = (id, image) =>
   axiosClient.patch(`/ads/${id}/admin/images/remove`, { image }).then((res) => res.data);
+
+// Toggles the current user's like on the ad. No request body. Response
+// shape: `{ message, liked: boolean, likes: number }`. Requires the user to
+// be logged in (protected route) — callers should redirect guests to
+// /login rather than calling this.
+export const toggleLikeAd = (id) => axiosClient.patch(`/ads/${id}/like`).then((res) => res.data);

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
-import { fetchAdById } from '../api/ads';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { fetchAdById, toggleLikeAd } from '../api/ads';
 import { resolveImageUrl } from '../utils/images';
 import { formatRelativeTime } from '../utils/formatRelativeTime';
 import FavouriteButton from '../components/FavouriteButton';
@@ -9,9 +9,12 @@ import Alert from '../components/Alert';
 import Spinner from '../components/Spinner';
 import { getErrorMessage } from '../utils/errors';
 import { toWhatsAppDigits } from '../utils/phone';
+import { useAuth } from '../context/AuthContext';
 
 export default function AdDetails() {
   const { id } = useParams();
+  const { user, isAuthenticated } = useAuth();
+  const navigate = useNavigate();
   const [ad, setAd] = useState(null);
   const [activeImage, setActiveImage] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -54,6 +57,29 @@ export default function AdDetails() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  // Like toggle — guests are redirected to /login instead of calling the
+  // API. On success, `ad.likes`/`ad.likedBy` are updated from the response
+  // so the count/fill state reflect the new server-side truth immediately.
+  const handleLikeClick = async () => {
+    if (!isAuthenticated) {
+      navigate('/login');
+      return;
+    }
+    try {
+      const data = await toggleLikeAd(ad._id);
+      setAd((prev) => ({
+        ...prev,
+        likes: data.likes,
+        likedBy: data.liked
+          ? [...(prev.likedBy || []).filter((likeId) => likeId !== user.id), user.id]
+          : (prev.likedBy || []).filter((likeId) => likeId !== user.id),
+      }));
+    } catch {
+      // Silently ignore — the like count simply won't update; no need to
+      // surface a hard error for a non-critical toggle action.
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center py-20">
@@ -76,6 +102,7 @@ export default function AdDetails() {
   const images = ad.images && ad.images.length > 0 ? ad.images : [];
   const whatsappDigits = toWhatsAppDigits(ad.whatsappNumber);
   const telegramHandle = ad.telegramUsername ? ad.telegramUsername.replace(/^@/, '') : null;
+  const liked = Boolean(user?.id && ad.likedBy?.includes(user.id));
 
   return (
     <div className="pb-20 md:pb-0">
@@ -119,10 +146,39 @@ export default function AdDetails() {
               {ad.category?.name || 'Uncategorized'}
             </span>
             <h1 className="mt-2 text-xl font-bold text-ink sm:text-2xl">{ad.title}</h1>
-            <p className="mt-1 text-sm text-gray-500">
-              Posted {formatRelativeTime(ad.createdAt)} by{' '}
-              <span className="font-medium text-ink-light">{ad.user?.name || 'a user'}</span>
-            </p>
+            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-500">
+              <p>
+                Posted {formatRelativeTime(ad.createdAt)} by{' '}
+                <span className="font-medium text-ink-light">{ad.user?.name || 'a user'}</span>
+              </p>
+              <span aria-hidden="true">&middot;</span>
+              <span>{ad.views ?? 0} views</span>
+              <span aria-hidden="true">&middot;</span>
+              <button
+                type="button"
+                onClick={handleLikeClick}
+                aria-pressed={liked}
+                aria-label={liked ? 'Unlike this ad' : 'Like this ad'}
+                className="flex items-center gap-1 hover:text-primary"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill={liked ? 'currentColor' : 'none'}
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  className={`h-4 w-4 ${liked ? 'text-primary' : ''}`}
+                  aria-hidden="true"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M12 21s-6.716-4.35-9.428-8.06C.665 10.128 1.1 6.5 4.11 4.99c2.19-1.1 4.61-.4 5.89 1.36C11.28 4.59 13.7 3.89 15.89 4.99c3.01 1.51 3.445 5.14 1.538 7.95C18.716 16.65 12 21 12 21z"
+                  />
+                </svg>
+                {ad.likes ?? 0}
+              </button>
+            </div>
           </div>
 
           <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink-light">{ad.description}</p>

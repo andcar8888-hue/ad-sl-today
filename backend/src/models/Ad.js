@@ -59,6 +59,32 @@ const adSchema = new mongoose.Schema(
       trim: true,
       default: null,
     },
+    // Admin-only boost tier. Regular users cannot set this on creation —
+    // only `updateAdAdmin` (via ADMIN_EDITABLE_FIELDS) may change it.
+    adType: {
+      type: String,
+      enum: ['normal', 'featured', 'super'],
+      default: 'normal',
+    },
+    // Incremented on every public detail view (see getAdById). No per-viewer
+    // dedup — unlike likes, repeat views from the same visitor all count.
+    views: {
+      type: Number,
+      default: 0,
+    },
+    // Denormalized count of `likedBy.length`, kept in sync on every toggle.
+    // Exists as its own field (not a virtual) because the product spec calls
+    // for a `likes` field directly.
+    likes: {
+      type: Number,
+      default: 0,
+    },
+    // Per-user membership record backing `likes` — prevents the same user
+    // from inflating the counter by repeat-toggling.
+    likedBy: {
+      type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+      default: [],
+    },
   },
   { timestamps: true }
 );

@@ -22,6 +22,7 @@ const EMPTY_EDIT_FORM = {
   whatsappNumber: '',
   telegramUsername: '',
   category: '',
+  adType: 'normal',
 };
 
 export default function AdsTab() {
@@ -93,6 +94,7 @@ export default function AdsTab() {
       whatsappNumber: ad.whatsappNumber || '',
       telegramUsername: ad.telegramUsername || '',
       category: ad.category?._id || '',
+      adType: ad.adType || 'normal',
     });
   };
 
@@ -126,6 +128,7 @@ export default function AdsTab() {
         payload.telegramUsername = editForm.telegramUsername.trim();
       }
       if (editForm.category !== (ad.category?._id || '')) payload.category = editForm.category;
+      if (editForm.adType !== (ad.adType || 'normal')) payload.adType = editForm.adType;
 
       if (Object.keys(payload).length > 0) {
         await updateAdAdmin(ad._id, payload);
@@ -230,6 +233,21 @@ export default function AdsTab() {
                 {cat.name}
               </option>
             ))}
+          </select>
+        </div>
+        <div>
+          <label className="field-label" htmlFor={`edit-adtype-${ad._id}`}>
+            Ad Type
+          </label>
+          <select
+            id={`edit-adtype-${ad._id}`}
+            value={editForm.adType}
+            onChange={(event) => updateEditField('adType', event.target.value)}
+            className="input-field"
+          >
+            <option value="normal">Normal</option>
+            <option value="featured">Featured</option>
+            <option value="super">Super</option>
           </select>
         </div>
         <div>
