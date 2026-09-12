@@ -1,7 +1,10 @@
 const mongoose = require('mongoose');
 const path = require('path');
+const fs = require('fs');
 const Ad = require('../models/Ad');
 const Category = require('../models/Category');
+const Order = require('../models/Order');
+const { adsUploadDir } = require('../middleware/upload');
 
 /**
  * Create a new ad submission for the authenticated user.
@@ -11,6 +14,8 @@ const Category = require('../models/Category');
  * "pending_payment" rather than "draft" (draft remains available in the
  * schema for future use, e.g. an explicit "save as draft" feature).
  *
+ * Accepts an optional `city` field (free-text, max 100 chars).
+ *
  * Route: POST /api/v1/ads (protected, multipart/form-data with `images[]`)
  *
  * @param {import('express').Request} req
@@ -18,7 +23,7 @@ const Category = require('../models/Category');
  */
 const createAd = async (req, res, next) => {
   try {
-    const { title, description, whatsappNumber, telegramUsername, category } = req.body;
+    const { title, description, city, whatsappNumber, telegramUsername, category } = req.body;
 
     const categoryDoc = await Category.findById(category);
     if (!categoryDoc) {
@@ -32,6 +37,7 @@ const createAd = async (req, res, next) => {
     const ad = await Ad.create({
       title,
       description,
+      city: city || null,
       whatsappNumber,
       telegramUsername: telegramUsername || null,
       category: categoryDoc._id,
@@ -52,8 +58,9 @@ const createAd = async (req, res, next) => {
 /**
  * Public listing of ads. Only ever returns ads with status "approved" —
  * pending/draft/rejected ads must never be exposed here.
- * Supports optional `category` (category id) and `search` (text search on
- * title/description) query params, plus basic pagination.
+ * Supports optional `category` (category id), `search` (text search on
+ * title/description) and `city` (case-insensitive partial match) query
+ * params, plus basic pagination.
  *
  * Route: GET /api/v1/ads
  *
@@ -62,7 +69,7 @@ const createAd = async (req, res, next) => {
  */
 const getAds = async (req, res, next) => {
   try {
-    const { category, search, page = 1, limit = 20 } = req.query;
+    const { category, search, city, page = 1, limit = 20 } = req.query;
 
     const filter = { status: 'approved' };
 
@@ -72,6 +79,10 @@ const getAds = async (req, res, next) => {
 
     if (search) {
       filter.$text = { $search: search };
+    }
+
+    if (city && city.trim()) {
+      filter.city = { $regex: city.trim(), $options: 'i' };
     }
 
     const pageNum = Math.max(parseInt(page, 10) || 1, 1);
@@ -134,7 +145,9 @@ const getAdById = async (req, res, next) => {
 
 /**
  * List the authenticated user's own ads, regardless of status, so they can
- * track their submission through the checkout / approval flow.
+ * track their submission through the checkout / approval flow. Each ad is
+ * enriched with its `userCode` and `orderStatus` from the associated Order,
+ * if one exists.
  *
  * Route: GET /api/v1/ads/mine (protected)
  *
@@ -145,8 +158,20 @@ const getMyAds = async (req, res, next) => {
   try {
     const ads = await Ad.find({ user: req.user._id })
       .populate('category', 'name slug')
-      .sort({ createdAt: -1 });
-    return res.status(200).json({ ads });
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const orders = await Order.find({ ad: { $in: ads.map((ad) => ad._id) } })
+      .select('ad userCode status')
+      .lean();
+    const orderByAdId = new Map(orders.map((order) => [order.ad.toString(), order]));
+    const adsWithCodes = ads.map((ad) => ({
+      ...ad,
+      userCode: orderByAdId.get(ad._id.toString())?.userCode || null,
+      orderStatus: orderByAdId.get(ad._id.toString())?.status || null,
+    }));
+
+    return res.status(200).json({ ads: adsWithCodes });
   } catch (error) {
     return next(error);
   }
@@ -154,7 +179,9 @@ const getMyAds = async (req, res, next) => {
 
 /**
  * Admin: list every ad regardless of status, for the admin dashboard.
- * Supports an optional `status` filter query param.
+ * Supports an optional `status` filter query param. Each ad is enriched
+ * with its `userCode` and `orderStatus` from the associated Order, if one
+ * exists.
  *
  * Route: GET /api/v1/ads/admin/all (protected, admin only)
  *
@@ -172,9 +199,20 @@ const getAllAdsAdmin = async (req, res, next) => {
     const ads = await Ad.find(filter)
       .populate('category', 'name slug')
       .populate('user', 'name email')
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .lean();
 
-    return res.status(200).json({ ads });
+    const orders = await Order.find({ ad: { $in: ads.map((ad) => ad._id) } })
+      .select('ad userCode status')
+      .lean();
+    const orderByAdId = new Map(orders.map((order) => [order.ad.toString(), order]));
+    const adsWithCodes = ads.map((ad) => ({
+      ...ad,
+      userCode: orderByAdId.get(ad._id.toString())?.userCode || null,
+      orderStatus: orderByAdId.get(ad._id.toString())?.status || null,
+    }));
+
+    return res.status(200).json({ ads: adsWithCodes });
   } catch (error) {
     return next(error);
   }
@@ -232,6 +270,99 @@ const rejectAd = async (req, res, next) => {
   }
 };
 
+// Fields an admin is allowed to edit on an ad's content. Deliberately
+// excludes `status`/`rejectionReason` — admin content edits must never
+// change an ad's approval status.
+const ADMIN_EDITABLE_FIELDS = [
+  'title',
+  'description',
+  'city',
+  'whatsappNumber',
+  'telegramUsername',
+  'category',
+];
+
+/**
+ * Admin: edit an ad's content fields (title, description, city,
+ * whatsappNumber, telegramUsername, category). Only fields actually present
+ * in the request body are updated. Never touches `ad.status` — an approved
+ * ad remains approved after an edit.
+ *
+ * Route: PATCH /api/v1/ads/:id/admin (protected, admin only)
+ *
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ */
+const updateAdAdmin = async (req, res, next) => {
+  try {
+    const ad = await Ad.findById(req.params.id);
+    if (!ad) {
+      return res.status(404).json({ message: 'Ad not found' });
+    }
+
+    if (req.body.category !== undefined) {
+      const categoryDoc = await Category.findById(req.body.category);
+      if (!categoryDoc) {
+        return res.status(400).json({ message: 'Invalid category' });
+      }
+    }
+
+    ADMIN_EDITABLE_FIELDS.forEach((field) => {
+      if (req.body[field] !== undefined) {
+        ad[field] = req.body[field];
+      }
+    });
+
+    await ad.save();
+
+    return res.status(200).json({ message: 'Ad updated', ad });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+/**
+ * Admin: remove a single image from an ad. The image must already be
+ * present in the ad's `images` array (this also prevents deleting arbitrary
+ * file paths). The database update is the source of truth; the on-disk file
+ * is best-effort deleted afterwards.
+ *
+ * Route: PATCH /api/v1/ads/:id/admin/images/remove (protected, admin only)
+ *
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ */
+const removeAdImage = async (req, res, next) => {
+  try {
+    const { image } = req.body;
+
+    const ad = await Ad.findById(req.params.id);
+    if (!ad) {
+      return res.status(404).json({ message: 'Ad not found' });
+    }
+
+    if (!ad.images.includes(image)) {
+      return res.status(400).json({ message: 'Image not found on this ad' });
+    }
+
+    ad.images = ad.images.filter((img) => img !== image);
+    await ad.save();
+
+    // Best-effort disk cleanup — DB is the source of truth, so failures here
+    // are logged but never fail the request.
+    const filePath = path.join(adsUploadDir, path.basename(image));
+    fs.unlink(filePath, (err) => {
+      if (err && err.code !== 'ENOENT') {
+        console.error('[removeAdImage] Failed to delete file from disk:', err);
+      }
+    });
+
+    return res.status(200).json({ message: 'Image removed', ad });
+  } catch (error) {
+    return next(error);
+  }
+};
+
 module.exports = {
   createAd,
   getAds,
@@ -240,4 +371,6 @@ module.exports = {
   getAllAdsAdmin,
   approveAd,
   rejectAd,
+  updateAdAdmin,
+  removeAdImage,
 };

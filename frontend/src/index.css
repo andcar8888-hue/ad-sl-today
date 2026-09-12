@@ -1,0 +1,123 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #d32f2f;
+  --color-primary-dark: #9a2020;
+  --color-primary-light: #ef5350;
+  --color-ink: #111111;
+  --color-ink-light: #262626;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f5f5f5;
+  --color-border: #e0e0e0;
+}
+
+body {
+  @apply bg-surface-muted text-ink antialiased;
+}
+
+/* Small utility for line-clamping ad card descriptions/titles. */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+::selection {
+  background-color: var(--color-primary);
+  color: #ffffff;
+}
+
+/* Visible keyboard-focus ring everywhere, even on elements that don't set
+   their own focus styles (nav buttons, table actions, tab buttons, etc.).
+   Mouse/touch users never see this — only :focus-visible triggers it.
+   This lives in @layer base (not unlayered) specifically so that
+   component/utility focus styles — e.g. .input-field's focus:outline-none
+   + focus:ring-2 combo — can still win and avoid a "double ring". */
+@layer base {
+  a:focus-visible,
+  button:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible,
+  [tabindex]:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+}
+
+@layer components {
+  /* Shared form field styling — used across auth forms, post-ad steps and
+     the admin dashboard so every input/select/textarea looks identical. */
+  .field-label {
+    @apply mb-1 block text-sm font-medium text-ink;
+  }
+
+  .field-hint {
+    @apply mt-1 text-xs text-gray-500;
+  }
+
+  .field-error {
+    @apply mt-1 flex items-center gap-1 text-xs font-medium text-primary-dark;
+  }
+
+  .input-field {
+    @apply w-full rounded-md border border-border bg-surface px-3 py-2.5 text-sm text-ink placeholder:text-gray-500 transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:cursor-not-allowed disabled:bg-surface-muted disabled:text-gray-400;
+  }
+
+  .input-field-error {
+    @apply border-primary focus:border-primary focus:ring-primary/30;
+  }
+
+  /* Button system: one shared base + color variants so primary actions
+     (submit/approve/post-ad) and destructive actions (reject/delete) read
+     consistently as "branded" across the whole app. Base guarantees a
+     >=44px touch target; .btn-sm intentionally opts into a smaller, denser
+     control for admin tables where 44px rows aren't practical.
+
+     Tailwind v4's @apply can only pull in real utilities, not another
+     @layer components class, so the shared base list is inlined into each
+     variant below rather than chained via `@apply btn ...`.
+
+     focus-visible (not focus) ring: no ring on mouse click, but a clear
+     branded ring for keyboard users. Uses box-shadow, not outline, so it
+     can never conflict/double-up with the global outline fallback below. */
+  .btn {
+    @apply inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-md px-4 py-2 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .btn-primary {
+    @apply inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-md px-4 py-2 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 bg-primary text-white hover:bg-primary-dark;
+  }
+
+  .btn-danger {
+    @apply inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-md px-4 py-2 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 bg-primary text-white hover:bg-primary-dark;
+  }
+
+  /* green-700, not green-600 — green-600 fails WCAG AA (4.5:1) for white text. */
+  .btn-success {
+    @apply inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-md px-4 py-2 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 bg-green-700 text-white hover:bg-green-800;
+  }
+
+  .btn-outline {
+    @apply inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-md px-4 py-2 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 border border-primary bg-transparent text-primary hover:bg-primary hover:text-white;
+  }
+
+  .btn-secondary {
+    @apply inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-md px-4 py-2 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 border border-border bg-surface text-ink hover:bg-surface-muted;
+  }
+
+  .btn-ghost {
+    @apply inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-md px-4 py-2 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 text-ink hover:bg-surface-muted;
+  }
+
+  .btn-sm {
+    @apply min-h-9 px-3 py-1.5 text-xs;
+  }
+
+  /* Thin, unobtrusive scrollbar for horizontally-scrolling admin tables. */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+  }
+}

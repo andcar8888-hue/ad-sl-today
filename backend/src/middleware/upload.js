@@ -31,16 +31,17 @@ const fileFilter = (req, file, cb) => {
   return cb(new Error('Only JPEG, PNG, WEBP or GIF image files are allowed'));
 };
 
-const maxFiles = Number(process.env.MAX_UPLOAD_FILES) || 6;
-const maxFileSizeBytes = (Number(process.env.MAX_UPLOAD_FILE_SIZE_MB) || 5) * 1024 * 1024;
+// Fixed product rule (not ops-configurable): max 3 images per ad, 400KB each.
+const MAX_AD_IMAGES = 3;
+const MAX_AD_IMAGE_SIZE_BYTES = 400 * 1024;
 
 const upload = multer({
   storage,
   fileFilter,
   limits: {
-    files: maxFiles,
-    fileSize: maxFileSizeBytes,
+    files: MAX_AD_IMAGES,
+    fileSize: MAX_AD_IMAGE_SIZE_BYTES,
   },
 });
 
-module.exports = { upload, adsUploadDir, uploadRoot };
+module.exports = { upload, adsUploadDir, uploadRoot, MAX_AD_IMAGES, MAX_AD_IMAGE_SIZE_BYTES };

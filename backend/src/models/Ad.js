@@ -17,6 +17,12 @@ const adSchema = new mongoose.Schema(
       trim: true,
       maxlength: [5000, 'Description cannot exceed 5000 characters'],
     },
+    city: {
+      type: String,
+      trim: true,
+      maxlength: [100, 'City cannot exceed 100 characters'],
+      default: null,
+    },
     // Local disk storage paths (e.g. "/uploads/ads/<filename>.jpg").
     // See backend/README.md for the image storage decision.
     images: {

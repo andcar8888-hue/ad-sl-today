@@ -12,13 +12,18 @@ const { slugify } = require('../src/controllers/categoryController');
 
 // Family-friendly categories only — never add adult/inappropriate categories.
 const STARTER_CATEGORIES = [
-  'Vehicles',
-  'Property',
   'Electronics',
+  'Vehicles',
+  'Property (Rent/Sale)',
   'Jobs',
   'Home & Garden',
-  'Fashion',
+  'Fashion & Beauty',
+  'Mobile Phones',
+  'Furniture',
   'Services',
+  'Sports & Hobbies',
+  'Kids & Baby Items',
+  'Books & Education',
 ];
 
 const seed = async () => {
@@ -31,6 +36,9 @@ const seed = async () => {
   try {
     await mongoose.connect(mongoUri);
     console.log('[seed] Connected to MongoDB');
+
+    await Category.deleteMany({});
+    console.log('[seed] Cleared existing categories');
 
     for (const name of STARTER_CATEGORIES) {
       // eslint-disable-next-line no-await-in-loop

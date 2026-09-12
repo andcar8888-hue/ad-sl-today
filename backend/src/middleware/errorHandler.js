@@ -19,7 +19,21 @@ const notFound = (req, res) => {
  */
 // eslint-disable-next-line no-unused-vars
 const errorHandler = (err, req, res, next) => {
-  if (err instanceof multer.MulterError || /image files are allowed/.test(err.message || '')) {
+  if (err instanceof multer.MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({
+        message: 'රූපයේ ප්‍රමාණය 400kb ට වඩා අඩුවෙන් උඩුගත කරන්න.',
+      });
+    }
+    if (err.code === 'LIMIT_FILE_COUNT' || err.code === 'LIMIT_UNEXPECTED_FILE') {
+      return res.status(400).json({
+        message: 'උපරිම ඡායාරූප 3ක් උඩුගත කළ හැක. (Maximum 3 images allowed.)',
+      });
+    }
+    return res.status(400).json({ message: err.message });
+  }
+
+  if (/image files are allowed/.test(err.message || '')) {
     return res.status(400).json({ message: err.message });
   }
 
