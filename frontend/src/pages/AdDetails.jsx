@@ -8,7 +8,7 @@ import ContactActions from '../components/ContactActions';
 import Alert from '../components/Alert';
 import Spinner from '../components/Spinner';
 import { getErrorMessage } from '../utils/errors';
-import { toWhatsAppDigits } from '../utils/phone';
+import { toWhatsAppDigits, toE164 } from '../utils/phone';
 import { useAuth } from '../context/AuthContext';
 
 /** Small bolt glyph for the time-limited (red) boosted-tier badge — mirrors
@@ -136,6 +136,7 @@ export default function AdDetails() {
 
   const images = ad.images && ad.images.length > 0 ? ad.images : [];
   const whatsappDigits = toWhatsAppDigits(ad.whatsappNumber);
+  const telHref = toE164(ad.whatsappNumber);
   const telegramHandle = ad.telegramUsername ? ad.telegramUsername.replace(/^@/, '') : null;
   const liked = Boolean(user?.id && ad.likedBy?.includes(user.id));
   // Mirrors AdCard.jsx's tiering logic: `boostActive` already accounts for
@@ -260,6 +261,7 @@ export default function AdDetails() {
             <ContactActions
               whatsappDigits={whatsappDigits}
               telegramHandle={telegramHandle}
+              telHref={telHref}
               onShare={handleShare}
             />
             {copied && <p className="mt-2 text-xs font-medium text-green-700">Link copied to clipboard!</p>}
@@ -278,6 +280,7 @@ export default function AdDetails() {
           <ContactActions
             whatsappDigits={whatsappDigits}
             telegramHandle={telegramHandle}
+            telHref={telHref}
             onShare={handleShare}
             compact
           />

@@ -15,3 +15,11 @@ export function toWhatsAppDigits(rawNumber) {
   if (digits.startsWith('0')) return `94${digits.slice(1)}`;
   return `94${digits}`;
 }
+
+// E.164 format (leading +, no spaces) — what a `tel:` link needs, as opposed
+// to toWhatsAppDigits' bare-digits format for wa.me links. Reuses the same
+// underlying normalization so both formats agree on what "the number" is.
+export function toE164(rawNumber) {
+  const digits = toWhatsAppDigits(rawNumber);
+  return digits ? `+${digits}` : '';
+}
