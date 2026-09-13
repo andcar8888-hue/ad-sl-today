@@ -6,6 +6,8 @@ const {
   getAdById,
   getMyAds,
   getMyAdById,
+  getMyAdsStats,
+  deleteAd,
   getAllAdsAdmin,
   approveAd,
   rejectAd,
@@ -90,6 +92,9 @@ router.get('/', getAds);
 
 // --- Protected, user-specific routes (must be declared before "/:id") ------
 router.get('/mine', protect, getMyAds);
+// Must be declared before "/mine/:id" — otherwise "stats" would be captured
+// as the `:id` param and misrouted (see route-ordering note above).
+router.get('/mine/stats', protect, getMyAdsStats);
 router.get('/mine/:id', protect, getMyAdById);
 router.post('/', protect, upload.array('images', MAX_AD_IMAGES), createAdValidators, validate, createAd);
 
@@ -134,6 +139,9 @@ router.post(
   validate,
   submitEditRequest
 );
+// Owner-or-admin check happens inside the controller (must work for a
+// regular user deleting their own ad, not just admins).
+router.delete('/:id', protect, deleteAd);
 
 // --- Public single-ad lookup -------------------------------------------------
 router.get('/:id', getAdById);

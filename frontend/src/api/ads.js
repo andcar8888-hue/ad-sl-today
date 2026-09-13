@@ -6,6 +6,15 @@ export const fetchAdById = (id) => axiosClient.get(`/ads/${id}`).then((res) => r
 
 export const fetchMyAds = () => axiosClient.get('/ads/mine').then((res) => res.data);
 
+// Lightweight aggregate stats for the authenticated user's own ads, for the
+// Dashboard's overview cards. Response shape:
+// { totalAds, totalApproved, totalViews, totalLikes, pendingApprovalCount, pendingEditCount }
+export const fetchMyAdsStats = () => axiosClient.get('/ads/mine/stats').then((res) => res.data);
+
+// Delete one of the authenticated user's own ads (or any ad, if the caller
+// is an admin — enforced server-side).
+export const deleteAd = (id) => axiosClient.delete(`/ads/${id}`).then((res) => res.data);
+
 // Owner-scoped single-ad lookup, regardless of status (e.g. pending_payment
 // or rejected, not just approved) — used by the edit-ad page.
 export const fetchMyAdById = (id) => axiosClient.get(`/ads/mine/${id}`).then((res) => res.data);

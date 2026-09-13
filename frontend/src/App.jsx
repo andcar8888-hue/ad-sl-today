@@ -10,7 +10,7 @@ import Register from './pages/Register';
 import PostAd from './pages/PostAd';
 import EditAd from './pages/EditAd';
 import Checkout from './pages/Checkout';
-import MyAds from './pages/MyAds';
+import Dashboard from './pages/Dashboard';
 import Favourites from './pages/Favourites';
 import AdminDashboard from './pages/AdminDashboard';
 import NotFound from './pages/NotFound';
@@ -32,7 +32,7 @@ export default function App() {
             <Route element={<ProtectedRoute />}>
               <Route path="/post-ad" element={<PostAd />} />
               <Route path="/checkout/:adId" element={<Checkout />} />
-              <Route path="/my-ads" element={<MyAds />} />
+              <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/my-ads/:id/edit" element={<EditAd />} />
             </Route>
 

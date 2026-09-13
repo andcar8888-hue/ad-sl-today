@@ -29,6 +29,12 @@ const userSchema = new mongoose.Schema(
       enum: ['user', 'admin'],
       default: 'user',
     },
+    phone: { type: String, trim: true, default: null },
+    // Default WhatsApp/Telegram contact used to pre-fill new Post Ad submissions
+    // — a convenience default, not authoritative; each ad still stores its own
+    // whatsappNumber/telegramUsername independently and can differ from these.
+    whatsappNumber: { type: String, trim: true, default: null },
+    telegramUsername: { type: String, trim: true, default: null },
   },
   { timestamps: true }
 );

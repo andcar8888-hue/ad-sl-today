@@ -40,7 +40,11 @@ const register = async (req, res, next) => {
         id: user._id,
         name: user.name,
         email: user.email,
+        phone: user.phone,
+        whatsappNumber: user.whatsappNumber,
+        telegramUsername: user.telegramUsername,
         role: user.role,
+        createdAt: user.createdAt,
       },
     });
   } catch (error) {
@@ -80,7 +84,11 @@ const login = async (req, res, next) => {
         id: user._id,
         name: user.name,
         email: user.email,
+        phone: user.phone,
+        whatsappNumber: user.whatsappNumber,
+        telegramUsername: user.telegramUsername,
         role: user.role,
+        createdAt: user.createdAt,
       },
     });
   } catch (error) {
@@ -103,9 +111,89 @@ const getMe = async (req, res) => {
       id: req.user._id,
       name: req.user.name,
       email: req.user.email,
+      phone: req.user.phone,
+      whatsappNumber: req.user.whatsappNumber,
+      telegramUsername: req.user.telegramUsername,
       role: req.user.role,
+      createdAt: req.user.createdAt,
     },
   });
+};
+
+// Fields a user is allowed to edit on their own profile. Deliberately
+// excludes `email`/`role` — those must never be changed via this endpoint,
+// even if present in the request body (silently ignored, not an error).
+const PROFILE_EDITABLE_FIELDS = ['name', 'phone', 'whatsappNumber', 'telegramUsername'];
+
+/**
+ * Update the currently authenticated user's own profile. Only whitelisted
+ * fields (name/phone/whatsappNumber/telegramUsername) are ever read from
+ * the request body — `email`/`role` are never assigned here even if present.
+ * Requires the `protect` auth middleware to have run first.
+ *
+ * Route: PATCH /api/v1/auth/me
+ *
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ */
+const updateProfile = async (req, res, next) => {
+  try {
+    PROFILE_EDITABLE_FIELDS.forEach((field) => {
+      if (req.body[field] !== undefined) {
+        req.user[field] = req.body[field];
+      }
+    });
+
+    await req.user.save();
+
+    return res.status(200).json({
+      user: {
+        id: req.user._id,
+        name: req.user.name,
+        email: req.user.email,
+        phone: req.user.phone,
+        whatsappNumber: req.user.whatsappNumber,
+        telegramUsername: req.user.telegramUsername,
+        role: req.user.role,
+        createdAt: req.user.createdAt,
+      },
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+/**
+ * Change the currently authenticated user's password. Requires the correct
+ * current password before a new one is set. Requires the `protect` auth
+ * middleware to have run first.
+ *
+ * Route: PATCH /api/v1/auth/me/password
+ *
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ */
+const changePassword = async (req, res, next) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    // req.user (from `protect`) doesn't have `password` selected — re-fetch
+    // it explicitly for this comparison.
+    const user = await User.findById(req.user._id).select('+password');
+
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
+    if (!isMatch) {
+      return res.status(400).json({ message: 'Current password is incorrect' });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(newPassword, salt);
+    await user.save();
+
+    return res.status(200).json({ message: 'Password updated successfully' });
+  } catch (error) {
+    return next(error);
+  }
 };
 
 /**
@@ -126,4 +214,11 @@ const getAllUsersAdmin = async (req, res, next) => {
   }
 };
 
-module.exports = { register, login, getMe, getAllUsersAdmin };
+module.exports = {
+  register,
+  login,
+  getMe,
+  updateProfile,
+  changePassword,
+  getAllUsersAdmin,
+};

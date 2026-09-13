@@ -106,10 +106,10 @@ export default function Navbar() {
                     Post an Ad
                   </Link>
                   <Link
-                    to="/my-ads"
+                    to="/dashboard"
                     className="rounded-md px-3 py-2 text-sm font-medium hover:bg-white/10 hover:text-primary-light"
                   >
-                    My Ads
+                    My Dashboard
                   </Link>
                   <Link
                     to="/favourites"
@@ -214,11 +214,11 @@ export default function Navbar() {
                   Post an Ad
                 </Link>
                 <Link
-                  to="/my-ads"
+                  to="/dashboard"
                   onClick={() => setMenuOpen(false)}
                   className="rounded-md px-2 py-3 hover:bg-white/10"
                 >
-                  My Ads
+                  My Dashboard
                 </Link>
                 <Link
                   to="/favourites"

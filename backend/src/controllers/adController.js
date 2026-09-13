@@ -253,6 +253,86 @@ const getMyAdById = async (req, res, next) => {
 };
 
 /**
+ * Lightweight aggregate stats for the authenticated user's own ads, for the
+ * Dashboard's overview cards. Only fetches the minimal fields needed
+ * (status/views/likes/hasPendingEdit) rather than full documents.
+ *
+ * Route: GET /api/v1/ads/mine/stats (protected)
+ *
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ */
+const getMyAdsStats = async (req, res, next) => {
+  try {
+    const ads = await Ad.find({ user: req.user._id })
+      .select('status views likes hasPendingEdit')
+      .lean();
+
+    const totalAds = ads.length;
+    const totalApproved = ads.filter((a) => a.status === 'approved').length;
+    const totalViews = ads.reduce((sum, a) => sum + (a.views || 0), 0);
+    const totalLikes = ads.reduce((sum, a) => sum + (a.likes || 0), 0);
+    const pendingApprovalCount = ads.filter((a) => a.status === 'pending_payment').length;
+    const pendingEditCount = ads.filter((a) => a.hasPendingEdit).length;
+
+    return res.status(200).json({
+      totalAds,
+      totalApproved,
+      totalViews,
+      totalLikes,
+      pendingApprovalCount,
+      pendingEditCount,
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+/**
+ * Delete an ad. Allowed for the ad's owner OR an admin — not any other user.
+ * Best-effort deletes every image file this ad ever referenced (both its
+ * live `images` and, if a pending edit exists, any `pendingChanges.images`
+ * not already covered), deletes the associated Order (if any — Order has a
+ * unique index on `ad`, so no orphan should be left behind), then deletes
+ * the ad itself. Any `Notification.relatedAdId` pointing at this ad is left
+ * as a dangling reference on purpose (the frontend already handles a null
+ * populate gracefully).
+ *
+ * Route: DELETE /api/v1/ads/:id (protected — ownership checked in-controller)
+ *
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ */
+const deleteAd = async (req, res, next) => {
+  try {
+    const ad = await Ad.findById(req.params.id);
+    if (!ad) {
+      return res.status(404).json({ message: 'Ad not found' });
+    }
+
+    const isOwner = ad.user.toString() === req.user._id.toString();
+    if (!isOwner && req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'You do not have permission to delete this ad' });
+    }
+
+    // Dedup so an image referenced both live and in a pending edit is only
+    // ever deleted once.
+    const imagesToDelete = new Set(ad.images || []);
+    if (ad.hasPendingEdit && ad.pendingChanges) {
+      (ad.pendingChanges.images || []).forEach((img) => imagesToDelete.add(img));
+    }
+    imagesToDelete.forEach(deleteAdImageFile);
+
+    await Order.deleteOne({ ad: ad._id });
+    await Ad.findByIdAndDelete(ad._id);
+
+    return res.status(200).json({ message: 'Ad deleted' });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+/**
  * Admin: list every ad regardless of status, for the admin dashboard.
  * Supports an optional `status` filter query param. Each ad is enriched
  * with its `userCode` and `orderStatus` from the associated Order, if one
@@ -756,6 +836,8 @@ module.exports = {
   getAdById,
   getMyAds,
   getMyAdById,
+  getMyAdsStats,
+  deleteAd,
   getAllAdsAdmin,
   approveAd,
   rejectAd,

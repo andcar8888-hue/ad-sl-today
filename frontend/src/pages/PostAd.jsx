@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { createAd } from '../api/ads';
 import { useCategories } from '../hooks/useCategories';
 import { useAdLevels } from '../hooks/useAdLevels';
+import { useAuth } from '../context/AuthContext';
 import Alert from '../components/Alert';
 import Toast from '../components/Toast';
 import StepIndicator from '../components/post-ad/StepIndicator';
@@ -27,14 +28,18 @@ export default function PostAd() {
   const navigate = useNavigate();
   const { categories } = useCategories();
   const { adLevels } = useAdLevels();
+  const { user } = useAuth();
 
   const [step, setStep] = useState(1);
+  // whatsappNumber/telegramUsername are seeded from the logged-in user's
+  // profile defaults (if set) as a convenience — the user can still freely
+  // edit these per-ad, this only changes the initial pre-filled value.
   const [form, setForm] = useState({
     title: '',
     description: '',
     category: '',
-    whatsappNumber: '',
-    telegramUsername: '',
+    whatsappNumber: user?.whatsappNumber || '',
+    telegramUsername: user?.telegramUsername || '',
     city: '',
     adLevel: '',
   });

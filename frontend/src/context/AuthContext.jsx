@@ -77,6 +77,19 @@ export function AuthProvider({ children }) {
     clearSession();
   }, [clearSession]);
 
+  // Merges `updatedFields` into the current cached `user` and re-persists it
+  // to localStorage, without touching the token. Lets a successful profile
+  // update (e.g. from the Dashboard's Account Settings form) immediately
+  // sync the Navbar's "Hi, {name}" and any other user-derived UI, without a
+  // full page reload or a second fetchMe() round-trip.
+  const refreshUser = useCallback((updatedFields) => {
+    setUser((prev) => {
+      const next = { ...prev, ...updatedFields };
+      localStorage.setItem(AUTH_USER_KEY, JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
   const value = {
     token,
     user,
@@ -86,6 +99,7 @@ export function AuthProvider({ children }) {
     login,
     register,
     logout,
+    refreshUser,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

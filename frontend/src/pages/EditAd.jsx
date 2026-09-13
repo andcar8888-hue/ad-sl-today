@@ -185,7 +185,7 @@ export default function EditAd() {
       // immediate navigate() would unmount this page (and the toast with
       // it) before the user ever sees it.
       showToast(EDIT_SUCCESS_MESSAGE);
-      setTimeout(() => navigate('/my-ads'), 1500);
+      setTimeout(() => navigate('/dashboard'), 1500);
       return;
     } catch (err) {
       setError(getErrorMessage(err));
