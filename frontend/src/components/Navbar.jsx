@@ -28,8 +28,12 @@ export default function Navbar() {
   return (
     <header className="sticky top-0 z-20 border-b border-ink bg-ink text-white">
       <div className="flex w-full items-center gap-3 px-4 py-3 sm:gap-4 sm:px-6 lg:px-10 xl:px-16">
-        <Link to="/" className="shrink-0 rounded text-lg font-bold sm:text-xl">
-          AD <span className="text-primary-light">SL</span> Today
+        <Link to="/" className="shrink-0 rounded" aria-label="AD SL Today — Home">
+          <img
+            src="/logo.png"
+            alt="AD SL Today"
+            className="h-9 w-auto sm:h-11"
+          />
         </Link>
 
         {/* Capped at max-w-xl so it doesn't balloon into a huge, sparse-looking
