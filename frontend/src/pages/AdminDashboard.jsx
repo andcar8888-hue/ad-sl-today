@@ -4,6 +4,7 @@ import OrdersTab from '../components/admin/OrdersTab';
 import CategoriesTab from '../components/admin/CategoriesTab';
 import UsersTab from '../components/admin/UsersTab';
 import AdLevelsTab from '../components/admin/AdLevelsTab';
+import PendingEditsTab from '../components/admin/PendingEditsTab';
 
 const TABS = [
   { key: 'ads', label: 'Manage Ads', Component: AdsTab },
@@ -11,6 +12,7 @@ const TABS = [
   { key: 'categories', label: 'Categories', Component: CategoriesTab },
   { key: 'users', label: 'Users', Component: UsersTab },
   { key: 'ad-levels', label: 'Ad Levels', Component: AdLevelsTab },
+  { key: 'pending-edits', label: 'Pending Edits', Component: PendingEditsTab },
 ];
 
 export default function AdminDashboard() {

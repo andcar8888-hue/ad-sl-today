@@ -1,12 +1,13 @@
 const mongoose = require('mongoose');
 const path = require('path');
-const fs = require('fs');
 const Ad = require('../models/Ad');
 const Category = require('../models/Category');
 const AdLevel = require('../models/AdLevel');
 const Order = require('../models/Order');
-const { adsUploadDir } = require('../middleware/upload');
+const Notification = require('../models/Notification');
+const { MAX_AD_IMAGES } = require('../middleware/upload');
 const { computeExpiresAt, isBoostActive } = require('../utils/adLevel');
+const { deleteAdImageFile } = require('../utils/adImages');
 
 /**
  * Create a new ad submission for the authenticated user.
@@ -223,6 +224,35 @@ const getMyAds = async (req, res, next) => {
 };
 
 /**
+ * Look up a single ad owned by the authenticated user, regardless of its
+ * status (e.g. `pending_payment` or `rejected`, not just `approved`) — used
+ * by the edit-ad page. Scoped to `req.user`, never a client-sent owner id.
+ * Responds 404 for both "doesn't exist" and "isn't yours", so ad existence
+ * is never leaked to a non-owner, consistent with the rest of this codebase.
+ *
+ * Route: GET /api/v1/ads/mine/:id (protected)
+ *
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ */
+const getMyAdById = async (req, res, next) => {
+  try {
+    const ad = await Ad.findOne({ _id: req.params.id, user: req.user._id })
+      .populate('category', 'name slug')
+      .populate('adLevel')
+      .populate('pendingChanges.category', 'name slug');
+
+    if (!ad) {
+      return res.status(404).json({ message: 'Ad not found' });
+    }
+
+    return res.status(200).json({ ad });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+/**
  * Admin: list every ad regardless of status, for the admin dashboard.
  * Supports an optional `status` filter query param. Each ad is enriched
  * with its `userCode` and `orderStatus` from the associated Order, if one
@@ -424,12 +454,7 @@ const removeAdImage = async (req, res, next) => {
 
     // Best-effort disk cleanup — DB is the source of truth, so failures here
     // are logged but never fail the request.
-    const filePath = path.join(adsUploadDir, path.basename(image));
-    fs.unlink(filePath, (err) => {
-      if (err && err.code !== 'ENOENT') {
-        console.error('[removeAdImage] Failed to delete file from disk:', err);
-      }
-    });
+    deleteAdImageFile(image);
 
     return res.status(200).json({ message: 'Image removed', ad });
   } catch (error) {
@@ -476,15 +501,269 @@ const toggleLikeAd = async (req, res, next) => {
   }
 };
 
+/**
+ * Owner submits a content edit for one of their own ads.
+ *
+ * IMPORTANT: this never touches `ad.status`. If the ad is currently
+ * "approved" (live/public), the edit is staged onto the separate
+ * `pendingChanges` field and `hasPendingEdit` is flagged — the publicly
+ * visible ad is completely untouched until an admin approves the edit (see
+ * `getAds`/`getAdById`, which only ever return `status: 'approved'` ads
+ * and read their top-level fields, never `pendingChanges`). For any other
+ * status (draft/pending_payment/rejected/expired) nothing public is at
+ * stake, so the edit is applied directly to the live ad.
+ *
+ * Images: `existingImages` (JSON array of image path strings the owner is
+ * keeping) is filtered down to only paths that already exist on the ad, so
+ * a client can never inject arbitrary/fabricated paths. Newly uploaded
+ * files come through the same `upload.array('images', MAX_AD_IMAGES)`
+ * middleware `createAd` uses.
+ *
+ * Route: POST /api/v1/ads/:id/edit-request (protected, multipart/form-data)
+ *
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ */
+const submitEditRequest = async (req, res, next) => {
+  try {
+    const { title, description, city, whatsappNumber, telegramUsername, category } = req.body;
+
+    const ad = await Ad.findById(req.params.id);
+    if (!ad) {
+      return res.status(404).json({ message: 'Ad not found' });
+    }
+
+    if (ad.user.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: 'You do not own this ad' });
+    }
+
+    const categoryDoc = await Category.findById(category);
+    if (!categoryDoc) {
+      return res.status(400).json({ message: 'Invalid category' });
+    }
+
+    // Parse defensively — a malformed or missing existingImages should
+    // never crash the request, just be treated as "keeping nothing".
+    let requestedExisting;
+    try {
+      requestedExisting = JSON.parse(req.body.existingImages || '[]');
+    } catch {
+      requestedExisting = [];
+    }
+    if (!Array.isArray(requestedExisting)) {
+      requestedExisting = [];
+    }
+    // Only allow paths that are genuinely already on this ad — prevents a
+    // client from injecting arbitrary/fabricated image paths.
+    const keptExisting = requestedExisting.filter((img) => ad.images.includes(img));
+
+    const newImagePaths = (req.files || []).map(
+      (file) => `/uploads/ads/${path.basename(file.path)}`
+    );
+
+    const finalImages = [...keptExisting, ...newImagePaths];
+
+    if (finalImages.length > MAX_AD_IMAGES) {
+      // The new files are already written to disk by multer at this point —
+      // clean them up since we're rejecting this submission.
+      newImagePaths.forEach(deleteAdImageFile);
+      return res.status(400).json({
+        message: 'උපරිම ඡායාරූප 3ක් උඩුගත කළ හැක. (Maximum 3 images allowed.)',
+      });
+    }
+
+    if (ad.status === 'approved') {
+      // The ad is live/public — do NOT touch any live field. Stage the edit
+      // for admin review instead.
+      if (ad.hasPendingEdit && ad.pendingChanges) {
+        // A previous pending edit is being superseded by this new one —
+        // clean up any of ITS images that only ever existed for that
+        // now-discarded request (i.e. not part of the live ad or this new
+        // submission), so they don't leak on disk.
+        const stillReferenced = new Set([...ad.images, ...finalImages]);
+        (ad.pendingChanges.images || [])
+          .filter((img) => !stillReferenced.has(img))
+          .forEach(deleteAdImageFile);
+      }
+
+      ad.pendingChanges = {
+        title,
+        description,
+        city: city || null,
+        category: categoryDoc._id,
+        whatsappNumber,
+        telegramUsername: telegramUsername || null,
+        images: finalImages,
+        submittedAt: new Date(),
+      };
+      ad.hasPendingEdit = true;
+      await ad.save();
+
+      await Notification.create({
+        type: 'edit_submitted',
+        user: null,
+        message: `${req.user.name} submitted an edit for ad "${ad.title}"`,
+        relatedAdId: ad._id,
+      });
+
+      return res.status(200).json({ message: 'Edit submitted for review', ad });
+    }
+
+    // Not live yet (draft/pending_payment/rejected/expired) — nothing
+    // public is at stake, so apply the changes directly. Never touch
+    // status/rejectionReason/pendingChanges/hasPendingEdit here.
+    const oldImages = ad.images;
+    ad.title = title;
+    ad.description = description;
+    ad.city = city || null;
+    ad.category = categoryDoc._id;
+    ad.whatsappNumber = whatsappNumber;
+    ad.telegramUsername = telegramUsername || null;
+    ad.images = finalImages;
+    await ad.save();
+
+    // Best-effort cleanup of any old images that got dropped from this edit.
+    oldImages.filter((img) => !finalImages.includes(img)).forEach(deleteAdImageFile);
+
+    return res.status(200).json({ message: 'Ad updated', ad });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+/**
+ * Admin: list every ad with a pending edit awaiting review, with both the
+ * live (top-level) fields and the staged `pendingChanges` populated so an
+ * admin can compare old vs. new before approving/rejecting.
+ *
+ * Route: GET /api/v1/ads/admin/pending-edits (protected, admin only)
+ *
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ */
+const getPendingEditsAdmin = async (req, res, next) => {
+  try {
+    const ads = await Ad.find({ hasPendingEdit: true })
+      .populate('category', 'name slug')
+      .populate('pendingChanges.category', 'name slug')
+      .populate('user', 'name email')
+      .sort({ 'pendingChanges.submittedAt': -1 });
+
+    return res.status(200).json({ ads });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+/**
+ * Admin: approve a pending edit, merging every field from `ad.pendingChanges`
+ * onto the live ad. `ad.status` is never touched by this — an approved ad's
+ * edit approval keeps it approved, it just now shows the new content.
+ * Old live images no longer referenced by the new image set are best-effort
+ * deleted from disk as genuinely orphaned.
+ *
+ * Route: PATCH /api/v1/ads/:id/edit-request/approve (protected, admin only)
+ *
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ */
+const approveEditRequest = async (req, res, next) => {
+  try {
+    const ad = await Ad.findById(req.params.id);
+    if (!ad || !ad.hasPendingEdit || !ad.pendingChanges) {
+      return res.status(404).json({ message: 'No pending edit found for this ad' });
+    }
+
+    const oldImages = ad.images;
+    const pending = ad.pendingChanges;
+
+    ad.title = pending.title;
+    ad.description = pending.description;
+    ad.city = pending.city;
+    ad.category = pending.category;
+    ad.whatsappNumber = pending.whatsappNumber;
+    ad.telegramUsername = pending.telegramUsername;
+    ad.images = pending.images;
+
+    ad.pendingChanges = null;
+    ad.hasPendingEdit = false;
+    await ad.save();
+
+    // Old images no longer referenced by the new set are genuinely orphaned now.
+    oldImages.filter((img) => !ad.images.includes(img)).forEach(deleteAdImageFile);
+
+    await Notification.create({
+      type: 'edit_approved',
+      user: ad.user,
+      message: 'ඔබගේ දැන්වීමට කළ වෙනස්කම් අනුමත කරන ලදී.',
+      relatedAdId: ad._id,
+    });
+
+    return res.status(200).json({ message: 'Edit approved', ad });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+/**
+ * Admin: reject a pending edit. The live ad and its images are completely
+ * untouched — only images that existed solely for the now-discarded
+ * pending request are best-effort deleted. `reason` is optional (unlike
+ * `rejectAd`'s required reason for rejecting a whole ad).
+ *
+ * Route: PATCH /api/v1/ads/:id/edit-request/reject (protected, admin only)
+ *
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ */
+const rejectEditRequest = async (req, res, next) => {
+  try {
+    const { reason } = req.body;
+
+    const ad = await Ad.findById(req.params.id);
+    if (!ad || !ad.hasPendingEdit || !ad.pendingChanges) {
+      return res.status(404).json({ message: 'No pending edit found for this ad' });
+    }
+
+    // Only images that existed purely for this now-discarded pending
+    // request (never part of the live ad) should be deleted.
+    (ad.pendingChanges.images || [])
+      .filter((img) => !ad.images.includes(img))
+      .forEach(deleteAdImageFile);
+
+    ad.pendingChanges = null;
+    ad.hasPendingEdit = false;
+    await ad.save();
+
+    await Notification.create({
+      type: 'edit_rejected',
+      user: ad.user,
+      message: reason
+        ? `ඔබගේ දැන්වීමට කළ වෙනස්කම් ප්‍රතික්ෂේප කරන ලදී. හේතුව: ${reason}`
+        : 'ඔබගේ දැන්වීමට කළ වෙනස්කම් ප්‍රතික්ෂේප කරන ලදී.',
+      relatedAdId: ad._id,
+    });
+
+    return res.status(200).json({ message: 'Edit rejected', ad });
+  } catch (error) {
+    return next(error);
+  }
+};
+
 module.exports = {
   createAd,
   getAds,
   getAdById,
   getMyAds,
+  getMyAdById,
   getAllAdsAdmin,
   approveAd,
   rejectAd,
   updateAdAdmin,
   removeAdImage,
   toggleLikeAd,
+  submitEditRequest,
+  getPendingEditsAdmin,
+  approveEditRequest,
+  rejectEditRequest,
 };

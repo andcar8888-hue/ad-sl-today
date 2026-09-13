@@ -1,4 +1,14 @@
-export default function StepImages({ images, onAdd, onRemove, error, maxImages }) {
+import { resolveImageUrl } from '../../utils/images';
+
+export default function StepImages({
+  images,
+  onAdd,
+  onRemove,
+  error,
+  maxImages,
+  existingImages = [],
+  onRemoveExisting,
+}) {
   const handleChange = (event) => {
     if (event.target.files?.length) {
       onAdd(event.target.files);
@@ -7,13 +17,16 @@ export default function StepImages({ images, onAdd, onRemove, error, maxImages }
     event.target.value = '';
   };
 
-  const atLimit = images.length >= maxImages;
+  // Existing (already-uploaded) images count toward the same combined limit
+  // as new-upload previews — both together can never exceed `maxImages`.
+  const totalCount = existingImages.length + images.length;
+  const atLimit = totalCount >= maxImages;
 
   return (
     <div className="space-y-4 rounded-lg border border-border bg-surface p-4 sm:p-5">
       <div>
         <p className="field-label">
-          Images ({images.length}/{maxImages})
+          Images ({totalCount}/{maxImages})
         </p>
 
         {/* The real <input> is visually hidden (sr-only) — a focus outline
@@ -50,8 +63,32 @@ export default function StepImages({ images, onAdd, onRemove, error, maxImages }
         {error && <p className="field-error">{error}</p>}
       </div>
 
-      {images.length > 0 && (
+      {(existingImages.length > 0 || images.length > 0) && (
         <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
+          {existingImages.map((imagePath, index) => (
+            <div key={imagePath} className="relative aspect-square rounded-md border border-border">
+              <div className="h-full w-full overflow-hidden rounded-md">
+                <img
+                  src={resolveImageUrl(imagePath)}
+                  alt={`Existing photo ${index + 1}`}
+                  className="h-full w-full object-cover"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => onRemoveExisting?.(imagePath)}
+                aria-label={`Remove existing image ${index + 1}`}
+                className="absolute -right-1.5 -top-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-ink text-sm font-bold text-white shadow hover:bg-primary"
+              >
+                &times;
+              </button>
+              {index === 0 && (
+                <span className="absolute bottom-1 left-1 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-medium text-white">
+                  Cover
+                </span>
+              )}
+            </div>
+          ))}
           {images.map((image, index) => (
             <div key={image.preview} className="relative aspect-square rounded-md border border-border">
               <div className="h-full w-full overflow-hidden rounded-md">
@@ -69,7 +106,7 @@ export default function StepImages({ images, onAdd, onRemove, error, maxImages }
               >
                 &times;
               </button>
-              {index === 0 && (
+              {existingImages.length === 0 && index === 0 && (
                 <span className="absolute bottom-1 left-1 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-medium text-white">
                   Cover
                 </span>

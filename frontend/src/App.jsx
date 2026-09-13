@@ -8,6 +8,7 @@ import AdDetails from './pages/AdDetails';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import PostAd from './pages/PostAd';
+import EditAd from './pages/EditAd';
 import Checkout from './pages/Checkout';
 import MyAds from './pages/MyAds';
 import Favourites from './pages/Favourites';
@@ -32,6 +33,7 @@ export default function App() {
               <Route path="/post-ad" element={<PostAd />} />
               <Route path="/checkout/:adId" element={<Checkout />} />
               <Route path="/my-ads" element={<MyAds />} />
+              <Route path="/my-ads/:id/edit" element={<EditAd />} />
             </Route>
 
             <Route element={<AdminRoute />}>

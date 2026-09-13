@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useCategories } from '../hooks/useCategories';
+import NotificationBell from './NotificationBell';
 
 export default function Navbar() {
   const { user, isAuthenticated, isAdmin, logout } = useAuth();
@@ -60,98 +61,109 @@ export default function Navbar() {
             cluster (rather than each carrying its own margin) so they hug the
             edge as a single unit — the search form's max-w above is what
             creates the breathing room on wide screens, not stretching this
-            cluster. */}
-        <div className="ml-auto hidden items-center gap-1 md:flex">
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setCategoriesOpen((open) => !open)}
-              aria-expanded={categoriesOpen}
-              className="rounded-md px-2 py-2 text-sm font-medium hover:bg-white/10 hover:text-primary-light"
-            >
-              Categories
-            </button>
-            {categoriesOpen && (
-              <div className="absolute right-0 z-30 mt-2 max-h-72 w-56 overflow-y-auto rounded-md border border-border bg-white py-1 text-ink shadow-lg">
-                {categories.length === 0 && (
-                  <p className="px-3 py-2 text-sm text-gray-500">No categories yet</p>
-                )}
-                {categories.map((category) => (
-                  <Link
-                    key={category._id}
-                    to={`/?category=${category._id}`}
-                    onClick={() => setCategoriesOpen(false)}
-                    className="block px-3 py-2 text-sm hover:bg-surface-muted"
-                  >
-                    {category.name}
-                  </Link>
-                ))}
-              </div>
-            )}
-          </div>
+            cluster. NotificationBell is mounted ONCE, outside both the
+            desktop-only (`hidden md:flex`) and mobile-only (`md:hidden`)
+            children below — `hidden`/`md:hidden` only toggle CSS display,
+            they never unmount a component, so a copy inside each of those
+            would both stay mounted (and both keep polling) at every
+            viewport width simultaneously. One bell, positioned between the
+            two viewport-exclusive siblings, is reachable at every width
+            without doubling the 30s unread-count polling. */}
+        <div className="ml-auto flex items-center gap-1">
+          <div className="hidden items-center gap-1 md:flex">
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setCategoriesOpen((open) => !open)}
+                aria-expanded={categoriesOpen}
+                className="rounded-md px-2 py-2 text-sm font-medium hover:bg-white/10 hover:text-primary-light"
+              >
+                Categories
+              </button>
+              {categoriesOpen && (
+                <div className="absolute right-0 z-30 mt-2 max-h-72 w-56 overflow-y-auto rounded-md border border-border bg-white py-1 text-ink shadow-lg">
+                  {categories.length === 0 && (
+                    <p className="px-3 py-2 text-sm text-gray-500">No categories yet</p>
+                  )}
+                  {categories.map((category) => (
+                    <Link
+                      key={category._id}
+                      to={`/?category=${category._id}`}
+                      onClick={() => setCategoriesOpen(false)}
+                      className="block px-3 py-2 text-sm hover:bg-surface-muted"
+                    >
+                      {category.name}
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
 
-          <nav className="flex items-center gap-1">
-            {isAuthenticated ? (
-              <>
-                <Link to="/post-ad" className="btn-primary min-h-9 px-3 py-2 text-sm">
-                  Post an Ad
-                </Link>
-                <Link
-                  to="/my-ads"
-                  className="rounded-md px-3 py-2 text-sm font-medium hover:bg-white/10 hover:text-primary-light"
-                >
-                  My Ads
-                </Link>
-                <Link
-                  to="/favourites"
-                  className="rounded-md px-3 py-2 text-sm font-medium hover:bg-white/10 hover:text-primary-light"
-                >
-                  Favourites
-                </Link>
-                {isAdmin && (
+            <nav className="flex items-center gap-1">
+              {isAuthenticated ? (
+                <>
+                  <Link to="/post-ad" className="btn-primary min-h-9 px-3 py-2 text-sm">
+                    Post an Ad
+                  </Link>
                   <Link
-                    to="/admin"
+                    to="/my-ads"
                     className="rounded-md px-3 py-2 text-sm font-medium hover:bg-white/10 hover:text-primary-light"
                   >
-                    Admin
+                    My Ads
                   </Link>
-                )}
-                <span className="px-2 text-sm text-gray-300">
-                  Hi, {user?.name?.split(' ')[0] || 'there'}
-                </span>
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  className="rounded-md px-3 py-2 text-sm font-medium hover:bg-white/10 hover:text-primary-light"
-                >
-                  Logout
-                </button>
-              </>
-            ) : (
-              <>
-                <Link
-                  to="/login"
-                  className="rounded-md px-3 py-2 text-sm font-medium hover:bg-white/10 hover:text-primary-light"
-                >
-                  Login
-                </Link>
-                <Link to="/register" className="btn-primary min-h-9 px-3 py-2 text-sm">
-                  Register
-                </Link>
-              </>
-            )}
-          </nav>
-        </div>
+                  <Link
+                    to="/favourites"
+                    className="rounded-md px-3 py-2 text-sm font-medium hover:bg-white/10 hover:text-primary-light"
+                  >
+                    Favourites
+                  </Link>
+                  {isAdmin && (
+                    <Link
+                      to="/admin"
+                      className="rounded-md px-3 py-2 text-sm font-medium hover:bg-white/10 hover:text-primary-light"
+                    >
+                      Admin
+                    </Link>
+                  )}
+                  <span className="px-2 text-sm text-gray-300">
+                    Hi, {user?.name?.split(' ')[0] || 'there'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="rounded-md px-3 py-2 text-sm font-medium hover:bg-white/10 hover:text-primary-light"
+                  >
+                    Logout
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Link
+                    to="/login"
+                    className="rounded-md px-3 py-2 text-sm font-medium hover:bg-white/10 hover:text-primary-light"
+                  >
+                    Login
+                  </Link>
+                  <Link to="/register" className="btn-primary min-h-9 px-3 py-2 text-sm">
+                    Register
+                  </Link>
+                </>
+              )}
+            </nav>
+          </div>
 
-        <button
-          type="button"
-          onClick={() => setMenuOpen((open) => !open)}
-          aria-label={menuOpen ? 'Close menu' : 'Open menu'}
-          aria-expanded={menuOpen}
-          className="ml-auto flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-2xl leading-none hover:bg-white/10 md:hidden"
-        >
-          {menuOpen ? '✕' : '☰'}
-        </button>
+          {isAuthenticated && <NotificationBell />}
+
+          <button
+            type="button"
+            onClick={() => setMenuOpen((open) => !open)}
+            aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+            aria-expanded={menuOpen}
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-2xl leading-none hover:bg-white/10 md:hidden"
+          >
+            {menuOpen ? '✕' : '☰'}
+          </button>
+        </div>
       </div>
 
       {menuOpen && (

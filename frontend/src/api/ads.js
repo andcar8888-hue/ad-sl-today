@@ -6,6 +6,10 @@ export const fetchAdById = (id) => axiosClient.get(`/ads/${id}`).then((res) => r
 
 export const fetchMyAds = () => axiosClient.get('/ads/mine').then((res) => res.data);
 
+// Owner-scoped single-ad lookup, regardless of status (e.g. pending_payment
+// or rejected, not just approved) — used by the edit-ad page.
+export const fetchMyAdById = (id) => axiosClient.get(`/ads/mine/${id}`).then((res) => res.data);
+
 // `formData` must already contain title, description, whatsappNumber,
 // telegramUsername (optional), category, and one or more `images` files.
 export const createAd = (formData) =>
@@ -37,3 +41,25 @@ export const removeAdImage = (id, image) =>
 // be logged in (protected route) — callers should redirect guests to
 // /login rather than calling this.
 export const toggleLikeAd = (id) => axiosClient.patch(`/ads/${id}/like`).then((res) => res.data);
+
+// Owner submits a content edit for one of their own ads. `formData` must
+// contain title/description/whatsappNumber/telegramUsername(optional)/
+// city(optional)/category/existingImages(JSON-stringified array of kept
+// image path strings)/images (new files). If the ad is currently approved,
+// this stages the edit onto `ad.pendingChanges` for admin review — the live
+// ad is untouched until approved. Otherwise it's applied directly.
+export const submitEditRequest = (id, formData) =>
+  axiosClient
+    .post(`/ads/${id}/edit-request`, formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+    .then((res) => res.data);
+
+// Admin: list every ad with a pending edit, old (top-level) and new
+// (`pendingChanges`) fields both populated for comparison.
+export const fetchPendingEditsAdmin = () => axiosClient.get('/ads/admin/pending-edits').then((res) => res.data);
+
+// Admin: approve a pending edit, merging it onto the live ad.
+export const approveEditRequest = (id) => axiosClient.patch(`/ads/${id}/edit-request/approve`).then((res) => res.data);
+
+// Admin: reject a pending edit. `reason` is optional.
+export const rejectEditRequest = (id, reason) =>
+  axiosClient.patch(`/ads/${id}/edit-request/reject`, reason ? { reason } : {}).then((res) => res.data);

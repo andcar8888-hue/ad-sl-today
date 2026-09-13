@@ -1,4 +1,13 @@
-export default function StepReview({ form, images, categories, adLevels }) {
+const DEFAULT_SUBMIT_NOTE =
+  "After you submit, you'll be taken to Checkout to complete a manual bank transfer and confirm your payment.";
+
+export default function StepReview({
+  form,
+  images,
+  categories,
+  adLevels,
+  submitNote = DEFAULT_SUBMIT_NOTE,
+}) {
   const categoryName = categories.find((cat) => cat._id === form.category)?.name || '—';
   const selectedAdLevel = adLevels.find((level) => level._id === form.adLevel);
 
@@ -41,12 +50,14 @@ export default function StepReview({ form, images, categories, adLevels }) {
           <dt className="text-gray-500">Category</dt>
           <dd className="col-span-2 text-ink">{categoryName}</dd>
         </div>
-        <div className="grid grid-cols-3 gap-2 py-2.5">
-          <dt className="text-gray-500">Ad Level</dt>
-          <dd className="col-span-2 text-ink">
-            {selectedAdLevel ? `${selectedAdLevel.name} — LKR ${selectedAdLevel.price}` : '—'}
-          </dd>
-        </div>
+        {adLevels.length > 0 && (
+          <div className="grid grid-cols-3 gap-2 py-2.5">
+            <dt className="text-gray-500">Ad Level</dt>
+            <dd className="col-span-2 text-ink">
+              {selectedAdLevel ? `${selectedAdLevel.name} — LKR ${selectedAdLevel.price}` : '—'}
+            </dd>
+          </div>
+        )}
         <div className="grid grid-cols-3 gap-2 py-2.5">
           <dt className="text-gray-500">WhatsApp</dt>
           <dd className="col-span-2 text-ink">{form.whatsappNumber}</dd>
@@ -65,10 +76,7 @@ export default function StepReview({ form, images, categories, adLevels }) {
         )}
       </dl>
 
-      <p className="rounded-md bg-primary/5 p-3 text-xs text-ink-light">
-        After you submit, you&apos;ll be taken to <span className="font-semibold">Checkout</span> to
-        complete a manual bank transfer and confirm your payment.
-      </p>
+      <p className="rounded-md bg-primary/5 p-3 text-xs text-ink-light">{submitNote}</p>
     </div>
   );
 }

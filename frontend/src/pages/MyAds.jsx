@@ -14,6 +14,28 @@ function needsCheckoutLink(ad) {
   return ad.status === 'pending_payment' && ad.orderStatus !== 'confirmed';
 }
 
+// Small pill shown alongside StatusBadge (which still correctly reflects the
+// ad's real, unchanged status) when the owner has a content edit awaiting
+// admin review — purely informational, never a replacement for StatusBadge.
+// Deliberately an outlined blue chip: every StatusBadge color is a solid
+// fill (gray/yellow/green/red), so a different hue *and* a different
+// (bordered, light-fill) treatment means this can never be mistaken for a
+// status at a glance — notably "pending_payment", which is also yellow.
+function PendingEditBadge() {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full border border-blue-300 bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3 w-3 shrink-0" aria-hidden="true">
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487z"
+        />
+      </svg>
+      Pending Edit Approval
+    </span>
+  );
+}
+
 // The user code, in the same bold monospace treatment Checkout.jsx uses —
 // this is the piece of info the owner is most likely to come back looking for.
 function UserCode({ ad }) {
@@ -95,7 +117,10 @@ export default function MyAds() {
                   <div className="min-w-0 flex-1 space-y-1.5">
                     <div className="flex items-start justify-between gap-2">
                       <h3 className="line-clamp-2 text-sm font-semibold text-ink">{ad.title}</h3>
-                      <StatusBadge status={ad.status} />
+                      <div className="flex shrink-0 flex-col items-end gap-1">
+                        <StatusBadge status={ad.status} />
+                        {ad.hasPendingEdit && <PendingEditBadge />}
+                      </div>
                     </div>
                     <p className="text-xs text-gray-500">
                       {ad.category?.name || 'Uncategorized'}
@@ -104,11 +129,16 @@ export default function MyAds() {
                     <p className="text-xs text-gray-500">
                       User code: <UserCode ad={ad} />
                     </p>
-                    {needsCheckoutLink(ad) && (
-                      <Link to={`/checkout/${ad._id}`} className="btn-outline btn-sm inline-flex">
-                        Complete Payment
+                    <div className="flex flex-wrap gap-2">
+                      {needsCheckoutLink(ad) && (
+                        <Link to={`/checkout/${ad._id}`} className="btn-outline btn-sm inline-flex">
+                          Complete Payment
+                        </Link>
+                      )}
+                      <Link to={`/my-ads/${ad._id}/edit`} className="btn-secondary btn-sm inline-flex">
+                        Edit
                       </Link>
-                    )}
+                    </div>
                   </div>
                 </div>
               );
@@ -140,16 +170,22 @@ export default function MyAds() {
                       <UserCode ad={ad} />
                     </td>
                     <td className="px-4 py-2">
-                      <StatusBadge status={ad.status} />
+                      <div className="flex flex-col items-start gap-1">
+                        <StatusBadge status={ad.status} />
+                        {ad.hasPendingEdit && <PendingEditBadge />}
+                      </div>
                     </td>
                     <td className="px-4 py-2">
-                      {needsCheckoutLink(ad) ? (
-                        <Link to={`/checkout/${ad._id}`} className="btn-outline btn-sm">
-                          Complete Payment
+                      <div className="flex flex-wrap gap-2">
+                        {needsCheckoutLink(ad) && (
+                          <Link to={`/checkout/${ad._id}`} className="btn-outline btn-sm">
+                            Complete Payment
+                          </Link>
+                        )}
+                        <Link to={`/my-ads/${ad._id}/edit`} className="btn-secondary btn-sm">
+                          Edit
                         </Link>
-                      ) : (
-                        <span className="text-gray-500">—</span>
-                      )}
+                      </div>
                     </td>
                   </tr>
                 ))}

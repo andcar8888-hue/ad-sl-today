@@ -5,12 +5,17 @@ const {
   getAds,
   getAdById,
   getMyAds,
+  getMyAdById,
   getAllAdsAdmin,
   approveAd,
   rejectAd,
   updateAdAdmin,
   removeAdImage,
   toggleLikeAd,
+  submitEditRequest,
+  getPendingEditsAdmin,
+  approveEditRequest,
+  rejectEditRequest,
 } = require('../controllers/adController');
 const validate = require('../middleware/validate');
 const protect = require('../middleware/auth');
@@ -55,15 +60,42 @@ const updateAdAdminValidators = [
 
 const removeAdImageValidators = [body('image').notEmpty().withMessage('image is required')];
 
+// Same as createAdValidators MINUS `adLevel` — edits never touch ad
+// level/pricing, that's a paid-tier decision tied to the original checkout,
+// out of scope for the edit-request feature. Plus `existingImages`, the
+// JSON-stringified array of kept image paths.
+const editRequestValidators = [
+  body('title').trim().notEmpty().withMessage('Title is required').isLength({ max: 120 }),
+  body('description')
+    .trim()
+    .notEmpty()
+    .withMessage('Description is required')
+    .isLength({ max: 5000 }),
+  body('city').optional({ checkFalsy: true }).trim().isLength({ max: 100 }).withMessage('City cannot exceed 100 characters'),
+  body('whatsappNumber')
+    .trim()
+    .notEmpty()
+    .withMessage('WhatsApp number is required')
+    .custom((value) => value.replace(/\D/g, '').length >= 9)
+    .withMessage('Please enter a valid WhatsApp number'),
+  body('telegramUsername').optional({ checkFalsy: true }).trim(),
+  body('category').notEmpty().withMessage('Category is required').isMongoId(),
+  body('existingImages').optional().isJSON().withMessage('existingImages must be a JSON array'),
+];
+
+const rejectEditRequestValidators = [body('reason').optional({ checkFalsy: true }).trim()];
+
 // --- Public routes ---------------------------------------------------------
 router.get('/', getAds);
 
 // --- Protected, user-specific routes (must be declared before "/:id") ------
 router.get('/mine', protect, getMyAds);
+router.get('/mine/:id', protect, getMyAdById);
 router.post('/', protect, upload.array('images', MAX_AD_IMAGES), createAdValidators, validate, createAd);
 
 // --- Admin-only routes (must be declared before "/:id") ---------------------
 router.get('/admin/all', protect, isAdmin, getAllAdsAdmin);
+router.get('/admin/pending-edits', protect, isAdmin, getPendingEditsAdmin);
 router.patch('/:id/approve', protect, isAdmin, approveAd);
 router.patch(
   '/:id/reject',
@@ -82,9 +114,26 @@ router.patch(
   validate,
   removeAdImage
 );
+router.patch('/:id/edit-request/approve', protect, isAdmin, approveEditRequest);
+router.patch(
+  '/:id/edit-request/reject',
+  protect,
+  isAdmin,
+  rejectEditRequestValidators,
+  validate,
+  rejectEditRequest
+);
 
 // --- Protected, any authenticated user (must be declared before "/:id") -----
 router.patch('/:id/like', protect, toggleLikeAd);
+router.post(
+  '/:id/edit-request',
+  protect,
+  upload.array('images', MAX_AD_IMAGES),
+  editRequestValidators,
+  validate,
+  submitEditRequest
+);
 
 // --- Public single-ad lookup -------------------------------------------------
 router.get('/:id', getAdById);

@@ -3,6 +3,24 @@ const mongoose = require('mongoose');
 // Ad lifecycle: draft -> pending_payment -> approved | rejected -> expired
 const AD_STATUSES = ['draft', 'pending_payment', 'approved', 'rejected', 'expired'];
 
+// Snapshot of an owner-submitted edit to an already-approved (live/public)
+// ad, awaiting admin review. Typed (not Mixed) so `category` can be
+// populated like any other ref. See `pendingChanges`/`hasPendingEdit` below
+// for why this never touches `status`.
+const pendingChangesSchema = new mongoose.Schema(
+  {
+    title: String,
+    description: String,
+    images: { type: [String], default: [] },
+    city: { type: String, default: null },
+    category: { type: mongoose.Schema.Types.ObjectId, ref: 'Category' },
+    whatsappNumber: String,
+    telegramUsername: { type: String, default: null },
+    submittedAt: { type: Date, default: Date.now },
+  },
+  { _id: false }
+);
+
 const adSchema = new mongoose.Schema(
   {
     title: {
@@ -99,6 +117,19 @@ const adSchema = new mongoose.Schema(
     likedBy: {
       type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
       default: [],
+    },
+    // Deliberately separate from `status` — an owner-submitted edit to an
+    // already-approved ad must NOT change what the public sees. The live ad
+    // (all top-level fields, including `status`) stays exactly as-is until
+    // an admin approves this pending snapshot; see adController's
+    // submitEditRequest/approveEditRequest/rejectEditRequest.
+    hasPendingEdit: {
+      type: Boolean,
+      default: false,
+    },
+    pendingChanges: {
+      type: pendingChangesSchema,
+      default: null,
     },
   },
   { timestamps: true }
