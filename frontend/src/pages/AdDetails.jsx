@@ -269,6 +269,17 @@ export default function AdDetails() {
         </div>
       </div>
 
+      {/* Liability disclaimer — AD SL Today only provides the platform to
+          post ads; it takes no responsibility for the actual transaction
+          between the poster and the buyer. */}
+      <div className="mt-6 rounded-lg border border-border bg-surface-muted/60 p-4 text-xs leading-relaxed text-gray-600 sm:text-sm">
+        <p className="font-semibold text-ink">වැදගත් සටහන</p>
+        <p className="mt-1">
+          දැන්වීම පළ කරන්නා සහ ගැනුම්කරු අතර සිදුවන කිසිදු ගනුදෙනුවක වගකීමක් AD SL Today විසින් භාර
+          නොගනු ලැබේ. අප සපයනු ලබන්නේ දැන්වීම් පළ කිරීමේ අවස්ථාව පමණි.
+        </p>
+      </div>
+
       {/* Mobile sticky contact bar — keeps the primary actions reachable
           without scrolling back up, since most users browse on phones. */}
       <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-surface/95 px-4 py-3 shadow-[0_-2px_8px_rgba(0,0,0,0.08)] backdrop-blur md:hidden">
