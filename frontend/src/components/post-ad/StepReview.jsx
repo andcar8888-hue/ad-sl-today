@@ -1,5 +1,6 @@
-export default function StepReview({ form, images, categories }) {
+export default function StepReview({ form, images, categories, adLevels }) {
   const categoryName = categories.find((cat) => cat._id === form.category)?.name || '—';
+  const selectedAdLevel = adLevels.find((level) => level._id === form.adLevel);
 
   return (
     <div className="space-y-4 rounded-lg border border-border bg-surface p-4 sm:p-5">
@@ -39,6 +40,12 @@ export default function StepReview({ form, images, categories }) {
         <div className="grid grid-cols-3 gap-2 py-2.5">
           <dt className="text-gray-500">Category</dt>
           <dd className="col-span-2 text-ink">{categoryName}</dd>
+        </div>
+        <div className="grid grid-cols-3 gap-2 py-2.5">
+          <dt className="text-gray-500">Ad Level</dt>
+          <dd className="col-span-2 text-ink">
+            {selectedAdLevel ? `${selectedAdLevel.name} — LKR ${selectedAdLevel.price}` : '—'}
+          </dd>
         </div>
         <div className="grid grid-cols-3 gap-2 py-2.5">
           <dt className="text-gray-500">WhatsApp</dt>

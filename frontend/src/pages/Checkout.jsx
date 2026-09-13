@@ -106,6 +106,15 @@ export default function Checkout() {
             <dd className="font-medium text-ink">{bankDetails.branch}</dd>
           </div>
         </dl>
+
+        {/* Total row — the actual amount + tier being paid for. Given its
+            own emphasized, dividing line at the bottom of the bank-details
+            card so it reads as the card's "total", not just another field. */}
+        {order.price != null && order.adLevelName && (
+          <p className="border-t border-dashed border-border pt-3 text-base font-bold text-primary sm:text-lg">
+            එකතුව: රු. {order.price} ({order.adLevelName})
+          </p>
+        )}
       </div>
 
       {/* User code: the single most important piece of info on this page. */}

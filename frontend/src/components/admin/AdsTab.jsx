@@ -6,6 +6,7 @@ import {
   removeAdImage,
   updateAdAdmin,
 } from '../../api/ads';
+import { fetchAllAdLevelsAdmin } from '../../api/adLevels';
 import { useCategories } from '../../hooks/useCategories';
 import { resolveImageUrl } from '../../utils/images';
 import Alert from '../Alert';
@@ -22,16 +23,28 @@ const EMPTY_EDIT_FORM = {
   whatsappNumber: '',
   telegramUsername: '',
   category: '',
-  adType: 'normal',
+  adLevel: '',
+  isFake: false,
 };
 
 export default function AdsTab() {
   const { categories } = useCategories();
+  // Uses the ADMIN listing (active + inactive) so an ad currently assigned
+  // to a since-deactivated level still shows correctly in the select.
+  const [adLevels, setAdLevels] = useState([]);
   const [ads, setAds] = useState([]);
   const [status, setStatus] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [actioningId, setActioningId] = useState(null);
+
+  useEffect(() => {
+    fetchAllAdLevelsAdmin()
+      .then((data) => setAdLevels(data.levels || []))
+      .catch(() => {
+        // Non-fatal — the select just renders empty if this fails.
+      });
+  }, []);
 
   // Inline edit panel state — only one ad can be edited at a time.
   const [editingId, setEditingId] = useState(null);
@@ -94,7 +107,8 @@ export default function AdsTab() {
       whatsappNumber: ad.whatsappNumber || '',
       telegramUsername: ad.telegramUsername || '',
       category: ad.category?._id || '',
-      adType: ad.adType || 'normal',
+      adLevel: ad.adLevel?._id || '',
+      isFake: Boolean(ad.isFake),
     });
   };
 
@@ -128,7 +142,8 @@ export default function AdsTab() {
         payload.telegramUsername = editForm.telegramUsername.trim();
       }
       if (editForm.category !== (ad.category?._id || '')) payload.category = editForm.category;
-      if (editForm.adType !== (ad.adType || 'normal')) payload.adType = editForm.adType;
+      if (editForm.adLevel !== (ad.adLevel?._id || '')) payload.adLevel = editForm.adLevel;
+      if (editForm.isFake !== Boolean(ad.isFake)) payload.isFake = editForm.isFake;
 
       if (Object.keys(payload).length > 0) {
         await updateAdAdmin(ad._id, payload);
@@ -236,19 +251,34 @@ export default function AdsTab() {
           </select>
         </div>
         <div>
-          <label className="field-label" htmlFor={`edit-adtype-${ad._id}`}>
-            Ad Type
+          <label className="field-label" htmlFor={`edit-adlevel-${ad._id}`}>
+            Ad Level
           </label>
           <select
-            id={`edit-adtype-${ad._id}`}
-            value={editForm.adType}
-            onChange={(event) => updateEditField('adType', event.target.value)}
+            id={`edit-adlevel-${ad._id}`}
+            value={editForm.adLevel}
+            onChange={(event) => updateEditField('adLevel', event.target.value)}
             className="input-field"
           >
-            <option value="normal">Normal</option>
-            <option value="featured">Featured</option>
-            <option value="super">Super</option>
+            <option value="">Select an ad level</option>
+            {adLevels.map((level) => (
+              <option key={level._id} value={level._id}>
+                {level.name} — LKR {level.price}
+              </option>
+            ))}
           </select>
+        </div>
+        <div className="flex items-center gap-2 pt-6">
+          <input
+            id={`edit-isfake-${ad._id}`}
+            type="checkbox"
+            checked={editForm.isFake}
+            onChange={(event) => updateEditField('isFake', event.target.checked)}
+            className="h-4 w-4 accent-primary"
+          />
+          <label className="field-label mb-0" htmlFor={`edit-isfake-${ad._id}`}>
+            Mark as Fake Ad
+          </label>
         </div>
         <div>
           <label className="field-label" htmlFor={`edit-city-${ad._id}`}>

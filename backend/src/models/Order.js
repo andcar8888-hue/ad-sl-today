@@ -20,6 +20,18 @@ const orderSchema = new mongoose.Schema(
       uppercase: true,
       trim: true,
     },
+    // Snapshot of the ad's chosen AdLevel name/price AT THE MOMENT checkout
+    // was created. Deliberately frozen — later admin edits to that AdLevel's
+    // price must never retroactively change what an existing order shows.
+    adLevelName: {
+      type: String,
+      required: true,
+    },
+    price: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
     // This only tracks the manual bank-transfer confirmation flow —
     // there is no real payment gateway involved.
     status: {

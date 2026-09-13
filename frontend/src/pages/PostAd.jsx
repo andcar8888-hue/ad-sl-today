@@ -2,12 +2,14 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createAd } from '../api/ads';
 import { useCategories } from '../hooks/useCategories';
+import { useAdLevels } from '../hooks/useAdLevels';
 import Alert from '../components/Alert';
 import Toast from '../components/Toast';
 import StepIndicator from '../components/post-ad/StepIndicator';
 import StepDetails from '../components/post-ad/StepDetails';
 import StepCategoryContact from '../components/post-ad/StepCategoryContact';
 import StepImages from '../components/post-ad/StepImages';
+import StepAdLevel from '../components/post-ad/StepAdLevel';
 import StepReview from '../components/post-ad/StepReview';
 import { getErrorMessage, getFieldErrors } from '../utils/errors';
 
@@ -15,7 +17,7 @@ import { getErrorMessage, getFieldErrors } from '../utils/errors';
 const MAX_IMAGES = 3;
 const MAX_IMAGE_SIZE_BYTES = 400 * 1024;
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
-const STEPS = ['Details', 'Category & Contact', 'Images', 'Review'];
+const STEPS = ['Details', 'Category & Contact', 'Images', 'Ad Level', 'Review'];
 // Exact strings reused verbatim from the backend's own validation messages so
 // users see identical wording whether the client or server catches the issue.
 const OVERSIZE_IMAGE_MESSAGE = 'රූපයේ ප්‍රමාණය 400kb ට වඩා අඩුවෙන් උඩුගත කරන්න.';
@@ -24,6 +26,7 @@ const TOO_MANY_IMAGES_MESSAGE = 'උපරිම ඡායාරූප 3ක් �
 export default function PostAd() {
   const navigate = useNavigate();
   const { categories } = useCategories();
+  const { adLevels } = useAdLevels();
 
   const [step, setStep] = useState(1);
   const [form, setForm] = useState({
@@ -33,6 +36,7 @@ export default function PostAd() {
     whatsappNumber: '',
     telegramUsername: '',
     city: '',
+    adLevel: '',
   });
   const [images, setImages] = useState([]);
   const [imageError, setImageError] = useState('');
@@ -99,6 +103,9 @@ export default function PostAd() {
         return 'Please enter a valid WhatsApp number.';
       }
     }
+    if (current === 4) {
+      if (!form.adLevel) return 'Please select an ad level.';
+    }
     return '';
   };
 
@@ -133,6 +140,7 @@ export default function PostAd() {
         formData.append('city', form.city.trim());
       }
       formData.append('category', form.category);
+      formData.append('adLevel', form.adLevel);
       images.forEach((image) => formData.append('images', image.file));
 
       const data = await createAd(formData);
@@ -175,7 +183,17 @@ export default function PostAd() {
           maxImages={MAX_IMAGES}
         />
       )}
-      {step === 4 && <StepReview form={form} images={images} categories={categories} />}
+      {step === 4 && (
+        <StepAdLevel
+          form={form}
+          updateField={updateField}
+          adLevels={adLevels}
+          fieldErrors={fieldErrors}
+        />
+      )}
+      {step === 5 && (
+        <StepReview form={form} images={images} categories={categories} adLevels={adLevels} />
+      )}
 
       <div className="sticky bottom-0 -mx-4 flex justify-between gap-3 border-t border-border bg-surface-muted/95 px-4 py-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:p-0">
         {step > 1 ? (

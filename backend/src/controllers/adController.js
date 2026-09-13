@@ -3,8 +3,10 @@ const path = require('path');
 const fs = require('fs');
 const Ad = require('../models/Ad');
 const Category = require('../models/Category');
+const AdLevel = require('../models/AdLevel');
 const Order = require('../models/Order');
 const { adsUploadDir } = require('../middleware/upload');
+const { computeExpiresAt, isBoostActive } = require('../utils/adLevel');
 
 /**
  * Create a new ad submission for the authenticated user.
@@ -16,6 +18,10 @@ const { adsUploadDir } = require('../middleware/upload');
  *
  * Accepts an optional `city` field (free-text, max 100 chars).
  *
+ * `adLevel` is REQUIRED — the user chooses (and later pays for) their boost
+ * tier as part of posting the ad itself, not as an admin-only edit. Must
+ * reference an active AdLevel.
+ *
  * Route: POST /api/v1/ads (protected, multipart/form-data with `images[]`)
  *
  * @param {import('express').Request} req
@@ -23,11 +29,16 @@ const { adsUploadDir } = require('../middleware/upload');
  */
 const createAd = async (req, res, next) => {
   try {
-    const { title, description, city, whatsappNumber, telegramUsername, category } = req.body;
+    const { title, description, city, whatsappNumber, telegramUsername, category, adLevel } = req.body;
 
     const categoryDoc = await Category.findById(category);
     if (!categoryDoc) {
       return res.status(400).json({ message: 'Invalid category' });
+    }
+
+    const adLevelDoc = await AdLevel.findById(adLevel);
+    if (!adLevelDoc || !adLevelDoc.isActive) {
+      return res.status(400).json({ message: 'Invalid ad level' });
     }
 
     const imagePaths = (req.files || []).map(
@@ -41,6 +52,7 @@ const createAd = async (req, res, next) => {
       whatsappNumber,
       telegramUsername: telegramUsername || null,
       category: categoryDoc._id,
+      adLevel: adLevelDoc._id,
       user: req.user._id,
       images: imagePaths,
       status: 'pending_payment',
@@ -62,9 +74,11 @@ const createAd = async (req, res, next) => {
  * title/description) and `city` (case-insensitive partial match) query
  * params, plus basic pagination.
  *
- * Boosted ads are surfaced first: "featured"/"super" adType ads sort ahead
- * of "normal" ones, and within each of those two groups ads are ordered
- * newest-first.
+ * Boosted ads are surfaced first: any ad whose AdLevel has a positive
+ * `priority` AND whose boost hasn't expired sorts ahead of non-boosted ads,
+ * and within each of those two groups ads are ordered newest-first. Boost
+ * rank is never keyed off a level's *name* — AdLevels are fully
+ * admin-configurable — only off `priority`/`durationDays`/`expiresAt`.
  *
  * Route: GET /api/v1/ads
  *
@@ -94,6 +108,7 @@ const getAds = async (req, res, next) => {
     // listing below already does unpaginated full-collection fetches).
     const allMatching = await Ad.find(filter)
       .populate('category', 'name slug')
+      .populate('adLevel')
       .sort({ createdAt: -1 })
       .lean();
 
@@ -101,21 +116,18 @@ const getAds = async (req, res, next) => {
     // current Node/V8) — since `allMatching` is already createdAt-desc,
     // sorting only by boost rank here preserves newest-first ordering
     // *within* each rank group for free.
-    //
-    // `.lean()` skips Mongoose's schema-default filling, so an ad created
-    // before `adType` existed has no `adType` key at all rather than the
-    // schema's 'normal' default — treat that as 'normal' (rank 1), not as
-    // boosted, or every legacy ad would wrongly jump ahead of newer normal ads.
-    const boostRank = (ad) => (ad.adType && ad.adType !== 'normal' ? 0 : 1);
+    const boostRank = (ad) => (isBoostActive(ad) ? 0 : 1);
     allMatching.sort((a, b) => boostRank(a) - boostRank(b));
 
     const total = allMatching.length;
     const pageNum = Math.max(parseInt(page, 10) || 1, 1);
     const limitNum = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100);
-    const ads = allMatching.slice(
-      (pageNum - 1) * limitNum,
-      (pageNum - 1) * limitNum + limitNum
-    );
+    const ads = allMatching
+      .slice((pageNum - 1) * limitNum, (pageNum - 1) * limitNum + limitNum)
+      // Attach the computed boost flag so the frontend never has to
+      // re-derive expiry logic itself (avoids client/server clock-skew
+      // inconsistency).
+      .map((ad) => ({ ...ad, boostActive: isBoostActive(ad) }));
 
     return res.status(200).json({
       ads,
@@ -159,13 +171,17 @@ const getAdById = async (req, res, next) => {
       { new: true }
     )
       .populate('category', 'name slug')
-      .populate('user', 'name');
+      .populate('adLevel')
+      .populate('user', 'name')
+      .lean();
 
     if (!ad) {
       return res.status(404).json({ message: 'Ad not found' });
     }
 
-    return res.status(200).json({ ad });
+    // Attach the computed boost flag — see getAds for why this is computed
+    // server-side rather than left for the frontend to derive.
+    return res.status(200).json({ ad: { ...ad, boostActive: isBoostActive(ad) } });
   } catch (error) {
     return next(error);
   }
@@ -186,6 +202,7 @@ const getMyAds = async (req, res, next) => {
   try {
     const ads = await Ad.find({ user: req.user._id })
       .populate('category', 'name slug')
+      .populate('adLevel')
       .sort({ createdAt: -1 })
       .lean();
 
@@ -226,6 +243,7 @@ const getAllAdsAdmin = async (req, res, next) => {
 
     const ads = await Ad.find(filter)
       .populate('category', 'name slug')
+      .populate('adLevel')
       .populate('user', 'name email')
       .sort({ createdAt: -1 })
       .lean();
@@ -247,7 +265,10 @@ const getAllAdsAdmin = async (req, res, next) => {
 };
 
 /**
- * Admin: approve an ad, making it publicly visible.
+ * Admin: approve an ad, making it publicly visible. Also (re)computes
+ * `expiresAt` from the ad's current AdLevel — if that level has a
+ * `durationDays` boost window, the ad's boosted visibility expires that many
+ * days from this approval moment; otherwise `expiresAt` is cleared to null.
  *
  * Route: PATCH /api/v1/ads/:id/approve (protected, admin only)
  *
@@ -256,13 +277,14 @@ const getAllAdsAdmin = async (req, res, next) => {
  */
 const approveAd = async (req, res, next) => {
   try {
-    const ad = await Ad.findById(req.params.id);
+    const ad = await Ad.findById(req.params.id).populate('adLevel');
     if (!ad) {
       return res.status(404).json({ message: 'Ad not found' });
     }
 
     ad.status = 'approved';
     ad.rejectionReason = null;
+    ad.expiresAt = computeExpiresAt(ad.adLevel);
     await ad.save();
 
     return res.status(200).json({ message: 'Ad approved', ad });
@@ -300,8 +322,8 @@ const rejectAd = async (req, res, next) => {
 
 // Fields an admin is allowed to edit on an ad's content. Deliberately
 // excludes `status`/`rejectionReason` — admin content edits must never
-// change an ad's approval status. `adType` is admin-only (boost tier) —
-// regular users cannot set it via createAd.
+// change an ad's approval status. `adLevel`/`isFake` are admin-only-via-this-
+// route edits of fields a regular user set (or couldn't set) at creation.
 const ADMIN_EDITABLE_FIELDS = [
   'title',
   'description',
@@ -309,14 +331,21 @@ const ADMIN_EDITABLE_FIELDS = [
   'whatsappNumber',
   'telegramUsername',
   'category',
-  'adType',
+  'adLevel',
+  'isFake',
 ];
 
 /**
  * Admin: edit an ad's content fields (title, description, city,
- * whatsappNumber, telegramUsername, category, adType). Only fields actually
- * present in the request body are updated. Never touches `ad.status` — an
- * approved ad remains approved after an edit.
+ * whatsappNumber, telegramUsername, category, adLevel, isFake). Only fields
+ * actually present in the request body are updated. Never touches
+ * `ad.status` — an approved ad remains approved after an edit.
+ *
+ * If `adLevel` is part of this edit, it must resolve to a real AdLevel
+ * (being inactive is fine here — an admin may deliberately assign an ad to a
+ * level they're phasing out). If the ad is currently `approved`, its
+ * `expiresAt` is recomputed from the new level, consistent with `approveAd`'s
+ * behavior; non-approved ads' `expiresAt` is left untouched by this route.
  *
  * Route: PATCH /api/v1/ads/:id/admin (protected, admin only)
  *
@@ -337,11 +366,26 @@ const updateAdAdmin = async (req, res, next) => {
       }
     }
 
+    let newAdLevelDoc;
+    if (req.body.adLevel !== undefined) {
+      newAdLevelDoc = await AdLevel.findById(req.body.adLevel);
+      if (!newAdLevelDoc) {
+        return res.status(400).json({ message: 'Invalid ad level' });
+      }
+    }
+
     ADMIN_EDITABLE_FIELDS.forEach((field) => {
       if (req.body[field] !== undefined) {
         ad[field] = req.body[field];
       }
     });
+
+    // Recompute the boost expiry consistently with approveAd's behavior —
+    // but only if this edit actually changed the level, and only for an ad
+    // that's currently live (approved). Otherwise leave expiresAt untouched.
+    if (newAdLevelDoc && ad.status === 'approved') {
+      ad.expiresAt = computeExpiresAt(newAdLevelDoc);
+    }
 
     await ad.save();
 

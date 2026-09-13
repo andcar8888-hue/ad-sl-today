@@ -35,6 +35,7 @@ const createAdValidators = [
     .withMessage('Please enter a valid WhatsApp number'),
   body('telegramUsername').optional({ checkFalsy: true }).trim(),
   body('category').notEmpty().withMessage('Category is required').isMongoId(),
+  body('adLevel').notEmpty().withMessage('Ad level is required').isMongoId(),
 ];
 
 const updateAdAdminValidators = [
@@ -48,11 +49,8 @@ const updateAdAdminValidators = [
     .withMessage('Please enter a valid WhatsApp number'),
   body('telegramUsername').optional({ checkFalsy: true }).trim(),
   body('category').optional({ checkFalsy: true }).trim().isMongoId().withMessage('Invalid category id'),
-  body('adType')
-    .optional({ checkFalsy: true })
-    .trim()
-    .isIn(['normal', 'featured', 'super'])
-    .withMessage('Invalid ad type'),
+  body('adLevel').optional({ checkFalsy: true }).isMongoId().withMessage('Invalid ad level id'),
+  body('isFake').optional().isBoolean().withMessage('isFake must be a boolean'),
 ];
 
 const removeAdImageValidators = [body('image').notEmpty().withMessage('image is required')];

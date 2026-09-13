@@ -3,12 +3,14 @@ import AdsTab from '../components/admin/AdsTab';
 import OrdersTab from '../components/admin/OrdersTab';
 import CategoriesTab from '../components/admin/CategoriesTab';
 import UsersTab from '../components/admin/UsersTab';
+import AdLevelsTab from '../components/admin/AdLevelsTab';
 
 const TABS = [
   { key: 'ads', label: 'Manage Ads', Component: AdsTab },
   { key: 'orders', label: 'Orders & Payments', Component: OrdersTab },
   { key: 'categories', label: 'Categories', Component: CategoriesTab },
   { key: 'users', label: 'Users', Component: UsersTab },
+  { key: 'ad-levels', label: 'Ad Levels', Component: AdLevelsTab },
 ];
 
 export default function AdminDashboard() {

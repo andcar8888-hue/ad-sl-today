@@ -14,6 +14,13 @@
      the "super" tier. Chosen (not amber-500) for >=4.5:1 contrast on white
      at small badge text sizes. */
   --color-gold: #b45309;
+  /* amber-500 — reserved exclusively for SAFETY warnings (the "Fake Ad"
+     badge, the admin "category needs reassignment before delete" prompt),
+     never for ad-tier promotion. Deliberately a different tone from
+     --color-gold so a safety warning can never be visually mistaken for a
+     paid "featured" boost. Always pair with dark (--color-ink) text, never
+     white — amber-500 fails AA contrast for white text at small sizes. */
+  --color-warning: #f59e0b;
 }
 
 body {

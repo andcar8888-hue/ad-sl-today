@@ -59,12 +59,27 @@ const adSchema = new mongoose.Schema(
       trim: true,
       default: null,
     },
-    // Admin-only boost tier. Regular users cannot set this on creation —
-    // only `updateAdAdmin` (via ADMIN_EDITABLE_FIELDS) may change it.
-    adType: {
-      type: String,
-      enum: ['normal', 'featured', 'super'],
-      default: 'normal',
+    // The boost tier the user chose (and paid for) at post time. Fully
+    // admin-configurable via the AdLevel model — never hardcode a level's
+    // name/id here, only reference it. Required because choosing a level is
+    // now part of the Post Ad flow itself, not an admin-only edit.
+    adLevel: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'AdLevel',
+      required: true,
+    },
+    // Admin-only flag to mark a listing as a known fake/scam ad, surfaced as
+    // a plain warning label on the public card/detail views.
+    isFake: {
+      type: Boolean,
+      default: false,
+    },
+    // Only meaningful for a durationDays-limited AdLevel (e.g. "Top Ad") —
+    // set when the ad is approved (see approveAd) to `approvedAt + durationDays`.
+    // null = never expires.
+    expiresAt: {
+      type: Date,
+      default: null,
     },
     // Incremented on every public detail view (see getAdById). No per-viewer
     // dedup — unlike likes, repeat views from the same visitor all count.

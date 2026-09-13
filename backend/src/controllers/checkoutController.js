@@ -10,10 +10,14 @@ const CHECKOUT_ELIGIBLE_STATUSES = ['pending_payment', 'draft'];
  * Start checkout for one of the authenticated user's own ads.
  *
  * Generates a unique userCode and creates an Order record tied to that ad
- * (status "pending_payment"). Returns the manual bank-transfer details and
- * the WhatsApp number the user must send their payment receipt + userCode
- * to. No real payment gateway is involved — payment confirmation is a
- * manual admin action performed later in the admin dashboard.
+ * (status "pending_payment"). Snapshots the ad's current AdLevel `name` and
+ * `price` onto the Order at creation time — this snapshot is permanent and
+ * deliberately never re-reads live AdLevel data, so a later admin price
+ * change to that AdLevel can never retroactively alter what an already-
+ * created order shows. Returns the manual bank-transfer details and the
+ * WhatsApp number the user must send their payment receipt + userCode to.
+ * No real payment gateway is involved — payment confirmation is a manual
+ * admin action performed later in the admin dashboard.
  *
  * Route: POST /api/v1/checkout (protected)
  * Body: { adId: string }
@@ -29,7 +33,7 @@ const createCheckout = async (req, res, next) => {
       return res.status(400).json({ message: 'Invalid adId' });
     }
 
-    const ad = await Ad.findById(adId);
+    const ad = await Ad.findById(adId).populate('adLevel');
     if (!ad) {
       return res.status(404).json({ message: 'Ad not found' });
     }
@@ -72,6 +76,8 @@ const createCheckout = async (req, res, next) => {
           ad: ad._id,
           user: req.user._id,
           userCode: generateUserCode(),
+          adLevelName: ad.adLevel.name,
+          price: ad.adLevel.price,
           status: 'pending_payment',
         });
       } catch (error) {

@@ -3,6 +3,7 @@ const authRoutes = require('./authRoutes');
 const adRoutes = require('./adRoutes');
 const checkoutRoutes = require('./checkoutRoutes');
 const categoryRoutes = require('./categoryRoutes');
+const adLevelRoutes = require('./adLevelRoutes');
 
 const router = express.Router();
 
@@ -10,5 +11,6 @@ router.use('/auth', authRoutes);
 router.use('/ads', adRoutes);
 router.use('/checkout', checkoutRoutes);
 router.use('/categories', categoryRoutes);
+router.use('/ad-levels', adLevelRoutes);
 
 module.exports = router;

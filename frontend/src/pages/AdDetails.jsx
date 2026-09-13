@@ -11,6 +11,41 @@ import { getErrorMessage } from '../utils/errors';
 import { toWhatsAppDigits } from '../utils/phone';
 import { useAuth } from '../context/AuthContext';
 
+/** Small bolt glyph for the time-limited (red) boosted-tier badge — mirrors
+ * AdCard.jsx's tier badge treatment for consistency between listing and
+ * detail views. */
+function TierBoltIcon({ className }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
+      <path d="M13 2 3 14h7l-1 8 11-14h-7l1-6z" />
+    </svg>
+  );
+}
+
+/** Small star glyph for the non-time-limited (gold) boosted-tier badge. */
+function TierStarIcon({ className }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
+      <path d="M12 2.5l2.7 6.06 6.6.62-4.98 4.42 1.47 6.47L12 16.9l-5.79 3.17 1.47-6.47-4.98-4.42 6.6-.62L12 2.5z" />
+    </svg>
+  );
+}
+
+/** Warning-triangle glyph for the "Fake Ad" safety badge — uses
+ * --color-warning (amber), never --color-gold/--color-primary, so it can
+ * never be visually mistaken for a paid boost tier. */
+function WarningTriangleIcon({ className }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" className={className} aria-hidden="true">
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M12 9v4m0 3.5h.01M10.29 3.86 1.82 18a1.5 1.5 0 0 0 1.3 2.25h17.76a1.5 1.5 0 0 0 1.3-2.25L13.71 3.86a1.5 1.5 0 0 0-2.42 0Z"
+      />
+    </svg>
+  );
+}
+
 export default function AdDetails() {
   const { id } = useParams();
   const { user, isAuthenticated } = useAuth();
@@ -103,6 +138,11 @@ export default function AdDetails() {
   const whatsappDigits = toWhatsAppDigits(ad.whatsappNumber);
   const telegramHandle = ad.telegramUsername ? ad.telegramUsername.replace(/^@/, '') : null;
   const liked = Boolean(user?.id && ad.likedBy?.includes(user.id));
+  // Mirrors AdCard.jsx's tiering logic: `boostActive` already accounts for
+  // time-limited levels expiring (server-computed); durationDays being set
+  // just picks which of the two boosted visual treatments to use.
+  const isBoosted = Boolean(ad.boostActive && ad.adLevel?.name);
+  const isTimeLimitedBoost = isBoosted && Boolean(ad.adLevel?.durationDays);
 
   return (
     <div className="pb-20 md:pb-0">
@@ -142,9 +182,41 @@ export default function AdDetails() {
 
         <div className="space-y-4">
           <div>
-            <span className="inline-block rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-primary-dark">
-              {ad.category?.name || 'Uncategorized'}
-            </span>
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Fake ad safety warning — placed first, ahead of both the
+                  category pill and the tier badge, since user safety
+                  outranks tier promotion in reading order too. */}
+              {ad.isFake && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-warning px-3 py-1 text-xs font-bold uppercase tracking-wide text-ink shadow-sm">
+                  <WarningTriangleIcon className="h-3.5 w-3.5" />
+                  Fake Ad
+                </span>
+              )}
+              <span className="inline-block rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-primary-dark">
+                {ad.category?.name || 'Uncategorized'}
+              </span>
+              {/* Boosted-tier badge — only shown while the boost is actually
+                  active (server-computed via ad.boostActive, which already
+                  accounts for time-limited levels expiring). Label text
+                  comes from the admin-configurable AdLevel name, never a
+                  hardcoded tier string. Solid red for time-limited
+                  (flashier) boosts, gold-outlined for non-time-limited
+                  (steady) boosts — mirrors AdCard.jsx's listing badge. */}
+              {isBoosted && (
+                <span
+                  className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wide ${
+                    isTimeLimitedBoost ? 'bg-primary text-white' : 'border border-gold text-gold'
+                  }`}
+                >
+                  {isTimeLimitedBoost ? (
+                    <TierBoltIcon className="h-3.5 w-3.5" />
+                  ) : (
+                    <TierStarIcon className="h-3.5 w-3.5" />
+                  )}
+                  {ad.adLevel.name}
+                </span>
+              )}
+            </div>
             <h1 className="mt-2 text-xl font-bold text-ink sm:text-2xl">{ad.title}</h1>
             <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-500">
               <p>

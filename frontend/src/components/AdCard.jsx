@@ -7,24 +7,17 @@ import { toggleLikeAd } from '../api/ads';
 import { useAuth } from '../context/AuthContext';
 import FavouriteButton from './FavouriteButton';
 
-// Maps an adType value to a human-readable label for the boost-tier badge.
-const AD_TYPE_LABELS = {
-  normal: 'Normal',
-  featured: 'Featured',
-  super: 'Super',
-};
+// Card-level border/ring treatment for a boosted ad vs. a plain one. AdLevels
+// are fully admin-configurable (name/price can change at any time), so this
+// never keys off a level's *name* — only off the server-computed
+// `ad.boostActive` flag, with a gold/red two-way split keyed off whether the
+// level is time-limited (`durationDays` set) — the one structural signal the
+// backend actually models for "flashier, time-boxed boost" vs. a steady one.
+const BOOST_CARD_CLASS_NORMAL = 'border border-border';
+const BOOST_CARD_CLASS_GOLD = 'border border-border border-t-2 border-t-gold';
+const BOOST_CARD_CLASS_RED = 'border border-primary/50 ring-2 ring-primary';
 
-// Card-level border/ring treatment per tier. "normal" intentionally matches
-// the pre-redesign look (plain border) — only featured/super get an accent,
-// so the tier signal reads as "this one's boosted" rather than adding noise
-// to every card.
-const AD_TYPE_CARD_CLASSES = {
-  normal: 'border border-border',
-  featured: 'border border-border border-t-2 border-t-gold',
-  super: 'border border-primary/50 ring-2 ring-primary',
-};
-
-/** Small star glyph shared by the featured/super tier badges. */
+/** Small star glyph used for the non-time-limited (gold) boosted-tier badge. */
 function TierStarIcon({ className }) {
   return (
     <svg
@@ -35,6 +28,45 @@ function TierStarIcon({ className }) {
       aria-hidden="true"
     >
       <path d="M12 2.5l2.7 6.06 6.6.62-4.98 4.42 1.47 6.47L12 16.9l-5.79 3.17 1.47-6.47-4.98-4.42 6.6-.62L12 2.5z" />
+    </svg>
+  );
+}
+
+/** Small bolt glyph used for the time-limited (red) boosted-tier badge —
+ * reads as the more urgent/flashier boost. */
+function TierBoltIcon({ className }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M13 2 3 14h7l-1 8 11-14h-7l1-6z" />
+    </svg>
+  );
+}
+
+/** Warning-triangle glyph for the "Fake Ad" safety badge — uses
+ * --color-warning (amber), never --color-gold/--color-primary, so it can
+ * never be visually mistaken for a paid boost tier. */
+function WarningTriangleIcon({ className }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      className={className}
+      aria-hidden="true"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M12 9v4m0 3.5h.01M10.29 3.86 1.82 18a1.5 1.5 0 0 0 1.3 2.25h17.76a1.5 1.5 0 0 0 1.3-2.25L13.71 3.86a1.5 1.5 0 0 0-2.42 0Z"
+      />
     </svg>
   );
 }
@@ -122,7 +154,16 @@ export default function AdCard({ ad }) {
     }
   };
 
-  const tierCardClass = AD_TYPE_CARD_CLASSES[ad.adType] || AD_TYPE_CARD_CLASSES.normal;
+  // `boostActive` already accounts for time-limited levels expiring
+  // (server-computed) — durationDays being set just picks which of the two
+  // boosted visual treatments to use, never whether it's boosted at all.
+  const isBoosted = Boolean(ad.boostActive && ad.adLevel?.name);
+  const isTimeLimitedBoost = isBoosted && Boolean(ad.adLevel?.durationDays);
+  const tierCardClass = !isBoosted
+    ? BOOST_CARD_CLASS_NORMAL
+    : isTimeLimitedBoost
+      ? BOOST_CARD_CLASS_RED
+      : BOOST_CARD_CLASS_GOLD;
 
   return (
     // Note: overflow-hidden intentionally lives on the image wrapper below,
@@ -139,19 +180,36 @@ export default function AdCard({ ad }) {
           onMouseEnter={handleImageMouseEnter}
           onMouseLeave={handleImageMouseLeave}
         >
-          {/* Tier badge — only featured/super get one; normal stays clean. */}
-          {ad.adType === 'super' && (
-            <span className="absolute left-1.5 top-1.5 z-10 inline-flex items-center gap-1 rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white shadow">
-              <TierStarIcon className="h-3 w-3" />
-              {AD_TYPE_LABELS.super}
-            </span>
-          )}
-          {ad.adType === 'featured' && (
-            <span className="absolute left-1.5 top-1.5 z-10 inline-flex items-center gap-1 rounded-full border border-gold bg-surface/90 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-gold shadow-sm">
-              <TierStarIcon className="h-3 w-3" />
-              {AD_TYPE_LABELS.featured}
-            </span>
-          )}
+          {/* Top-left badge stack: the Fake Ad safety warning (if present)
+              always sits above the tier badge — user safety outranks tier
+              promotion, so it gets the more prominent top slot. */}
+          <div className="absolute left-1.5 top-1.5 z-10 flex flex-col items-start gap-1">
+            {ad.isFake && (
+              <span className="inline-flex items-center gap-1 rounded-md bg-warning px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ink shadow">
+                <WarningTriangleIcon className="h-3 w-3" />
+                Fake Ad
+              </span>
+            )}
+            {/* Tier badge — only shown while the ad's boost is actually
+                active (server-computed, accounts for time-limited levels
+                expiring); label text comes from the admin-configurable
+                AdLevel name. Solid red for time-limited (flashier) boosts,
+                gold-outlined for non-time-limited (steady) boosts. */}
+            {isBoosted && (
+              <span
+                className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide shadow ${
+                  isTimeLimitedBoost ? 'bg-primary text-white' : 'border border-gold bg-white/95 text-gold'
+                }`}
+              >
+                {isTimeLimitedBoost ? (
+                  <TierBoltIcon className="h-3 w-3" />
+                ) : (
+                  <TierStarIcon className="h-3 w-3" />
+                )}
+                {ad.adLevel.name}
+              </span>
+            )}
+          </div>
 
           {thumbnail ? (
             <img
