@@ -7,6 +7,7 @@ import {
   updateAdAdmin,
 } from '../../api/ads';
 import { fetchAllAdLevelsAdmin } from '../../api/adLevels';
+import { useAuth } from '../../context/AuthContext';
 import { useCategories } from '../../hooks/useCategories';
 import { resolveImageUrl } from '../../utils/images';
 import Alert from '../Alert';
@@ -28,6 +29,13 @@ const EMPTY_EDIT_FORM = {
 };
 
 export default function AdsTab() {
+  const { user } = useAuth();
+  // A moderator (the lowest tier reaching this tab) cannot change an ad's
+  // pricing level — that's a monetization decision, not "content" — the
+  // backend 403s if `adLevel` is present at all in a moderator's PATCH
+  // body, so the select is hidden entirely for that tier rather than just
+  // disabled. admin_assistant/admin see it normally.
+  const isModeratorRole = user?.role === 'moderator';
   const { categories } = useCategories();
   // Uses the ADMIN listing (active + inactive) so an ad currently assigned
   // to a since-deactivated level still shows correctly in the select.
@@ -250,24 +258,30 @@ export default function AdsTab() {
             ))}
           </select>
         </div>
-        <div>
-          <label className="field-label" htmlFor={`edit-adlevel-${ad._id}`}>
-            Ad Level
-          </label>
-          <select
-            id={`edit-adlevel-${ad._id}`}
-            value={editForm.adLevel}
-            onChange={(event) => updateEditField('adLevel', event.target.value)}
-            className="input-field"
-          >
-            <option value="">Select an ad level</option>
-            {adLevels.map((level) => (
-              <option key={level._id} value={level._id}>
-                {level.name} — LKR {level.price}
-              </option>
-            ))}
-          </select>
-        </div>
+        {/* Hidden entirely (not just disabled) for a moderator — the
+            backend 403s the whole PATCH if `adLevel` is present at all in a
+            moderator's request body, since pricing-tier changes are
+            reserved for admin_assistant+. */}
+        {!isModeratorRole && (
+          <div>
+            <label className="field-label" htmlFor={`edit-adlevel-${ad._id}`}>
+              Ad Level
+            </label>
+            <select
+              id={`edit-adlevel-${ad._id}`}
+              value={editForm.adLevel}
+              onChange={(event) => updateEditField('adLevel', event.target.value)}
+              className="input-field"
+            >
+              <option value="">Select an ad level</option>
+              {adLevels.map((level) => (
+                <option key={level._id} value={level._id}>
+                  {level.name} — LKR {level.price}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         <div className="flex items-center gap-2 pt-6">
           <input
             id={`edit-isfake-${ad._id}`}
@@ -302,7 +316,11 @@ export default function AdsTab() {
             className="input-field"
           />
         </div>
-        <div>
+        {/* Spans both columns for a moderator viewer only — with the Ad
+            Level field above hidden for that tier, the remaining fields
+            total an odd number and this last one would otherwise trail
+            alone in its row with an empty cell beside it. */}
+        <div className={isModeratorRole ? 'sm:col-span-2' : ''}>
           <label className="field-label" htmlFor={`edit-telegram-${ad._id}`}>
             Telegram Username
           </label>

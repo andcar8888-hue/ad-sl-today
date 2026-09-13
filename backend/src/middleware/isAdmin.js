@@ -1,18 +1,8 @@
-/**
- * Admin authorization middleware. Must run AFTER the `protect` auth
- * middleware so `req.user` is already populated from the verified JWT /
- * database lookup — the client can never influence this via request body,
- * query params, or headers.
- *
- * @param {import('express').Request} req
- * @param {import('express').Response} res
- * @param {import('express').NextFunction} next
- */
-const isAdmin = (req, res, next) => {
-  if (!req.user || req.user.role !== 'admin') {
-    return res.status(403).json({ message: 'Forbidden: admin access required' });
-  }
-  return next();
-};
-
-module.exports = isAdmin;
+// Kept as a thin re-export so every existing
+// `const isAdmin = require('../middleware/isAdmin')` import keeps working
+// unchanged, and keeps meaning EXACTLY what it always meant — `role ===
+// 'admin'`, i.e. the top of the role hierarchy, unaffected by the
+// introduction of the `moderator`/`admin_assistant` tiers in
+// `./roles.js`. New code should generally import `isAdmin`/`isManager`/
+// `isModerator` directly from `./roles` instead.
+module.exports = require('./roles').isAdmin;

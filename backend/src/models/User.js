@@ -26,9 +26,14 @@ const userSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ['user', 'admin'],
+      enum: ['user', 'moderator', 'admin_assistant', 'admin'],
       default: 'user',
     },
+    // Blocked accounts cannot log in (checked in `login`) and any existing
+    // JWT they're already holding is rejected on the very next authenticated
+    // request (checked in the `protect` middleware), not just at the next
+    // login attempt.
+    blocked: { type: Boolean, default: false },
     phone: { type: String, trim: true, default: null },
     // Default WhatsApp/Telegram contact used to pre-fill new Post Ad submissions
     // — a convenience default, not authoritative; each ad still stores its own

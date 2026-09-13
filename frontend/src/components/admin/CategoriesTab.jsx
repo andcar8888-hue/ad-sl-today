@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { createCategory, deleteCategory, fetchCategories } from '../../api/categories';
+import { useAuth } from '../../context/AuthContext';
 import Alert from '../Alert';
 import Spinner from '../Spinner';
 import { getErrorMessage } from '../../utils/errors';
@@ -17,6 +18,7 @@ function WarningTriangleIcon({ className }) {
 }
 
 export default function CategoriesTab() {
+  const { isAdmin } = useAuth();
   const [categories, setCategories] = useState([]);
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(true);
@@ -132,14 +134,18 @@ export default function CategoriesTab() {
             <li key={category._id} className="px-4 py-2.5">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-sm text-ink">{category.name}</span>
-                <button
-                  type="button"
-                  onClick={() => handleDelete(category._id)}
-                  aria-label={`Delete category ${category.name}`}
-                  className="btn-outline btn-sm"
-                >
-                  Delete
-                </button>
+                {/* Hidden (not disabled) for admin_assistant — only a true
+                    admin may delete anywhere, per the role hierarchy. */}
+                {isAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(category._id)}
+                    aria-label={`Delete category ${category.name}`}
+                    className="btn-outline btn-sm"
+                  >
+                    Delete
+                  </button>
+                )}
               </div>
 
               {/* Inline reassign-required prompt — shown only for the

@@ -8,13 +8,15 @@ const {
 } = require('../controllers/checkoutController');
 const validate = require('../middleware/validate');
 const protect = require('../middleware/auth');
-const isAdmin = require('../middleware/isAdmin');
+const { isManager } = require('../middleware/roles');
 
 const router = express.Router();
 
-// --- Admin routes (declared before "/:adId" to avoid shadowing) ------------
-router.get('/admin/all', protect, isAdmin, getAllOrdersAdmin);
-router.patch('/:id/confirm', protect, isAdmin, confirmOrderPayment);
+// --- admin_assistant+ routes (declared before "/:adId" to avoid shadowing) -
+// Order/payment management is admin_assistant-tier, not exposed to
+// moderator per the role-hierarchy spec.
+router.get('/admin/all', protect, isManager, getAllOrdersAdmin);
+router.patch('/:id/confirm', protect, isManager, confirmOrderPayment);
 
 // --- User routes -------------------------------------------------------------
 router.post(

@@ -5,6 +5,7 @@ import {
   fetchAllAdLevelsAdmin,
   updateAdLevel,
 } from '../../api/adLevels';
+import { useAuth } from '../../context/AuthContext';
 import Alert from '../Alert';
 import Spinner from '../Spinner';
 import { getErrorMessage } from '../../utils/errors';
@@ -39,6 +40,7 @@ const editFormFromLevel = (level) => ({
 });
 
 export default function AdLevelsTab() {
+  const { isAdmin } = useAuth();
   const [levels, setLevels] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -244,9 +246,14 @@ export default function AdLevelsTab() {
                   >
                     {editingId === level._id ? 'Close' : 'Edit'}
                   </button>
-                  <button type="button" onClick={() => handleDelete(level)} className="btn-danger btn-sm">
-                    Delete
-                  </button>
+                  {/* Hidden (not disabled) for admin_assistant — only a
+                      true admin may delete anywhere, per the role
+                      hierarchy. */}
+                  {isAdmin && (
+                    <button type="button" onClick={() => handleDelete(level)} className="btn-danger btn-sm">
+                      Delete
+                    </button>
+                  )}
                 </div>
               </div>
 

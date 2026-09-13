@@ -9,7 +9,7 @@ const {
 } = require('../controllers/adLevelController');
 const validate = require('../middleware/validate');
 const protect = require('../middleware/auth');
-const isAdmin = require('../middleware/isAdmin');
+const { isManager, isAdmin } = require('../middleware/roles');
 
 const router = express.Router();
 
@@ -38,10 +38,12 @@ const updateAdLevelValidators = [
 // --- Public routes ---------------------------------------------------------
 router.get('/', getAdLevels);
 
-// --- Admin-only routes (must be declared before "/:id") ---------------------
-router.get('/admin/all', protect, isAdmin, getAllAdLevelsAdmin);
-router.post('/', protect, isAdmin, createAdLevelValidators, validate, createAdLevel);
-router.patch('/:id', protect, isAdmin, updateAdLevelValidators, validate, updateAdLevel);
+// --- admin_assistant+ routes (must be declared before "/:id") ---------------
+router.get('/admin/all', protect, isManager, getAllAdLevelsAdmin);
+router.post('/', protect, isManager, createAdLevelValidators, validate, createAdLevel);
+router.patch('/:id', protect, isManager, updateAdLevelValidators, validate, updateAdLevel);
+// Delete is admin-only — admin_assistant may create/edit ad levels but never
+// delete anything anywhere.
 router.delete('/:id', protect, isAdmin, deleteAdLevel);
 
 module.exports = router;

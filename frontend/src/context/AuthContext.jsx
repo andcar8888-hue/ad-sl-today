@@ -90,11 +90,25 @@ export function AuthProvider({ children }) {
     });
   }, []);
 
+  // Role-derived booleans, computed from the linear
+  // user < moderator < admin_assistant < admin hierarchy. `isAdmin` keeps
+  // its EXACT PREVIOUS MEANING (`role === 'admin'`) since existing code
+  // depends on that — it is NOT "admin-tier or above", it is "the literal
+  // top role". `isModerator`/`isManager` are the "this tier or above"
+  // checks used to gate broader admin-panel access.
+  const role = user?.role || null;
+  const isModerator = role === 'moderator' || role === 'admin_assistant' || role === 'admin';
+  const isManager = role === 'admin_assistant' || role === 'admin';
+  const isAdmin = role === 'admin';
+
   const value = {
     token,
     user,
     isAuthenticated: Boolean(token),
-    isAdmin: user?.role === 'admin',
+    role,
+    isModerator,
+    isManager,
+    isAdmin,
     loading,
     login,
     register,

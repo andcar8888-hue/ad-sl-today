@@ -457,13 +457,21 @@ const ADMIN_EDITABLE_FIELDS = [
  * `expiresAt` is recomputed from the new level, consistent with `approveAd`'s
  * behavior; non-approved ads' `expiresAt` is left untouched by this route.
  *
- * Route: PATCH /api/v1/ads/:id/admin (protected, admin only)
+ * A `moderator` (the lowest admin-panel tier reaching this route) may edit
+ * an ad's content but NOT its `adLevel` — that's a pricing/monetization
+ * decision, not "content", and is reserved for admin_assistant+.
+ *
+ * Route: PATCH /api/v1/ads/:id/admin (protected, moderator+)
  *
  * @param {import('express').Request} req
  * @param {import('express').Response} res
  */
 const updateAdAdmin = async (req, res, next) => {
   try {
+    if (req.user.role === 'moderator' && req.body.adLevel !== undefined) {
+      return res.status(403).json({ message: "Moderators cannot change an ad's pricing level" });
+    }
+
     const ad = await Ad.findById(req.params.id);
     if (!ad) {
       return res.status(404).json({ message: 'Ad not found' });

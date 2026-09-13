@@ -21,7 +21,7 @@ const {
 } = require('../controllers/adController');
 const validate = require('../middleware/validate');
 const protect = require('../middleware/auth');
-const isAdmin = require('../middleware/isAdmin');
+const { isModerator } = require('../middleware/roles');
 const { upload, MAX_AD_IMAGES } = require('../middleware/upload');
 
 const router = express.Router();
@@ -98,32 +98,36 @@ router.get('/mine/stats', protect, getMyAdsStats);
 router.get('/mine/:id', protect, getMyAdById);
 router.post('/', protect, upload.array('images', MAX_AD_IMAGES), createAdValidators, validate, createAd);
 
-// --- Admin-only routes (must be declared before "/:id") ---------------------
-router.get('/admin/all', protect, isAdmin, getAllAdsAdmin);
-router.get('/admin/pending-edits', protect, isAdmin, getPendingEditsAdmin);
-router.patch('/:id/approve', protect, isAdmin, approveAd);
+// --- Moderator+ routes (must be declared before "/:id") ---------------------
+// Reviewing/approving/rejecting ads and pending edits, and editing ad
+// content, is moderator-tier — the whole hierarchy from moderator up can
+// reach these. (Field-level restriction: a `moderator` specifically may not
+// change `adLevel` via updateAdAdmin — enforced inside that controller.)
+router.get('/admin/all', protect, isModerator, getAllAdsAdmin);
+router.get('/admin/pending-edits', protect, isModerator, getPendingEditsAdmin);
+router.patch('/:id/approve', protect, isModerator, approveAd);
 router.patch(
   '/:id/reject',
   protect,
-  isAdmin,
+  isModerator,
   [body('reason').trim().notEmpty().withMessage('Rejection reason is required')],
   validate,
   rejectAd
 );
-router.patch('/:id/admin', protect, isAdmin, updateAdAdminValidators, validate, updateAdAdmin);
+router.patch('/:id/admin', protect, isModerator, updateAdAdminValidators, validate, updateAdAdmin);
 router.patch(
   '/:id/admin/images/remove',
   protect,
-  isAdmin,
+  isModerator,
   removeAdImageValidators,
   validate,
   removeAdImage
 );
-router.patch('/:id/edit-request/approve', protect, isAdmin, approveEditRequest);
+router.patch('/:id/edit-request/approve', protect, isModerator, approveEditRequest);
 router.patch(
   '/:id/edit-request/reject',
   protect,
-  isAdmin,
+  isModerator,
   rejectEditRequestValidators,
   validate,
   rejectEditRequest

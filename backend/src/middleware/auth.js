@@ -27,6 +27,13 @@ const protect = async (req, res, next) => {
       return res.status(401).json({ message: 'Not authorized, user no longer exists' });
     }
 
+    // Re-checked on EVERY authenticated request (not just at login) so a
+    // user blocked mid-session is cut off immediately, even if they're
+    // still holding a JWT that was issued before they were blocked.
+    if (user.blocked) {
+      return res.status(403).json({ message: 'Your account has been blocked. Please contact support.' });
+    }
+
     req.user = user;
     return next();
   } catch (error) {
