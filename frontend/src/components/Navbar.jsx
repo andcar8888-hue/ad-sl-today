@@ -149,6 +149,15 @@ export default function Navbar() {
               )}
             </div>
 
+            {/* Visible to everyone, logged in or not — most useful to
+                someone who hasn't posted an ad yet. */}
+            <Link
+              to="/how-to-publish"
+              className="rounded-md px-3 py-2 text-sm font-medium hover:bg-white/10 hover:text-primary-light"
+            >
+              How to Publish
+            </Link>
+
             {/* flex-wrap: at cramped desktop widths just above the md
                 breakpoint, this row (categories + 5-6 links + greeting/role
                 pill + logout) can now run out of horizontal room with the
@@ -264,6 +273,13 @@ export default function Navbar() {
           )}
 
           <div className="flex flex-col gap-1 border-t border-white/10 pt-3 text-sm">
+            <Link
+              to="/how-to-publish"
+              onClick={() => setMenuOpen(false)}
+              className="rounded-md px-2 py-3 hover:bg-white/10"
+            >
+              How to Publish
+            </Link>
             {isAuthenticated ? (
               <>
                 <Link

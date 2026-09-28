@@ -10,7 +10,13 @@ export default function Footer() {
       <p className="mt-1 text-xs text-gray-400">
         &copy; {new Date().getFullYear()} AD SL Today. All rights reserved.
       </p>
-      <nav className="mx-auto mt-4 flex max-w-xs items-center justify-center gap-3 border-t border-ink-light pt-4 text-xs text-gray-400">
+      <nav className="mx-auto mt-4 flex max-w-sm flex-wrap items-center justify-center gap-x-3 gap-y-1 border-t border-ink-light pt-4 text-xs text-gray-400">
+        <Link to="/how-to-publish" className="hover:text-white hover:underline">
+          How to Publish an Ad
+        </Link>
+        <span aria-hidden="true" className="text-gray-600">
+          &middot;
+        </span>
         <Link to="/terms" className="hover:text-white hover:underline">
           Terms &amp; Conditions
         </Link>

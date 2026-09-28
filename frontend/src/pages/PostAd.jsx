@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { createAd } from '../api/ads';
 import { useCategories } from '../hooks/useCategories';
 import { useAdLevels } from '../hooks/useAdLevels';
@@ -163,7 +163,12 @@ export default function PostAd() {
   return (
     <div className="mx-auto max-w-2xl space-y-6 pb-4">
       <div>
-        <h1 className="text-xl font-bold text-ink">Post an Ad</h1>
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+          <h1 className="text-xl font-bold text-ink">Post an Ad</h1>
+          <Link to="/how-to-publish" className="text-sm font-medium text-primary hover:underline">
+            දැන්වීමක් පළ කරන්නේ කෙසේද?
+          </Link>
+        </div>
         <p className="text-sm text-gray-500">ඔබගේ දැන්වීම විනාඩි කිහිපයකින් පළ කරන්න.</p>
         <StepIndicator steps={STEPS} currentStep={step} />
       </div>

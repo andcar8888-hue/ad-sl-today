@@ -14,6 +14,7 @@ import Dashboard from './pages/Dashboard';
 import Favourites from './pages/Favourites';
 import Terms from './pages/Terms';
 import Privacy from './pages/Privacy';
+import HowToPublish from './pages/HowToPublish';
 import AdminDashboard from './pages/AdminDashboard';
 import NotFound from './pages/NotFound';
 
@@ -32,6 +33,7 @@ export default function App() {
             <Route path="/favourites" element={<Favourites />} />
             <Route path="/terms" element={<Terms />} />
             <Route path="/privacy" element={<Privacy />} />
+            <Route path="/how-to-publish" element={<HowToPublish />} />
 
             <Route element={<ProtectedRoute />}>
               <Route path="/post-ad" element={<PostAd />} />
