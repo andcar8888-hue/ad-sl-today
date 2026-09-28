@@ -2,7 +2,47 @@ import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useCategories } from '../hooks/useCategories';
+import { useFavourites } from '../hooks/useFavourites';
 import NotificationBell from './NotificationBell';
+
+// Heart icon + count badge linking straight to /favourites. Shown for EVERY
+// visitor, not just logged-in ones — Favourites works for guests too via a
+// localStorage "guest" namespace (see useFavourites/pages/Favourites.jsx),
+// so gating this on isAuthenticated the way NotificationBell is (which
+// genuinely needs a login) would incorrectly hide a guest's own favourites.
+function FavouritesLink() {
+  const { favouriteIds } = useFavourites();
+  const count = favouriteIds.length;
+
+  return (
+    <Link
+      to="/favourites"
+      aria-label={count > 0 ? `Favourite ads (${count})` : 'Favourite ads'}
+      className="relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md hover:bg-white/10 hover:text-primary-light"
+    >
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 24 24"
+        fill={count > 0 ? 'currentColor' : 'none'}
+        stroke="currentColor"
+        strokeWidth="1.75"
+        className={`h-5 w-5 ${count > 0 ? 'text-primary-light' : ''}`}
+        aria-hidden="true"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M12 21s-6.716-4.35-9.428-8.06C.665 10.128 1.1 6.5 4.11 4.99c2.19-1.1 4.61-.4 5.89 1.36C11.28 4.59 13.7 3.89 15.89 4.99c3.01 1.51 3.445 5.14 1.538 7.95C18.716 16.65 12 21 12 21z"
+        />
+      </svg>
+      {count > 0 && (
+        <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold leading-none text-white">
+          {count > 99 ? '99+' : count}
+        </span>
+      )}
+    </Link>
+  );
+}
 
 // "admin_assistant" -> "Admin Assistant", "moderator" -> "Moderator", etc.
 // Purely a display helper — never used for any permission decision.
@@ -126,12 +166,6 @@ export default function Navbar() {
                   >
                     My Dashboard
                   </Link>
-                  <Link
-                    to="/favourites"
-                    className="rounded-md px-3 py-2 text-sm font-medium hover:bg-white/10 hover:text-primary-light"
-                  >
-                    Favourites
-                  </Link>
                   {isModerator && (
                     <Link
                       to="/admin"
@@ -177,6 +211,7 @@ export default function Navbar() {
             </nav>
           </div>
 
+          <FavouritesLink />
           {isAuthenticated && <NotificationBell />}
 
           <button
@@ -244,13 +279,6 @@ export default function Navbar() {
                   className="rounded-md px-2 py-3 hover:bg-white/10"
                 >
                   My Dashboard
-                </Link>
-                <Link
-                  to="/favourites"
-                  onClick={() => setMenuOpen(false)}
-                  className="rounded-md px-2 py-3 hover:bg-white/10"
-                >
-                  Favourites
                 </Link>
                 {isModerator && (
                   <Link
